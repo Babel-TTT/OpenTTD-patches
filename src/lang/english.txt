@@ -4737,6 +4737,29 @@ STR_ORDER_RV_MIN_WAIT_DAYS                                      :{NUM} day{P "" 
 STR_ORDER_RV_CARGO_CAN_CARRY                                    :Cargo: {STRING}
 STR_ORDER_RV_CARGO_IS_CARRYING                                  :Carrying: {STRING}
 STR_ORDER_RV_DEST_STATION                                       :Destination: {STATION}
+STR_ORDER_DROP_RV_CRITERIA                                      :Selection criteria...
+STR_RV_TRANSPORT_CRITERIA_CAPTION                               :Road vehicle selection criteria
+STR_RV_TRANSPORT_CRITERIA_LOAD_STATE                            :Load state
+STR_RV_TRANSPORT_CRITERIA_CARGO                                 :Cargo
+STR_RV_TRANSPORT_CRITERIA_CARGO_MODE                            :Cargo criterion
+STR_RV_TRANSPORT_CRITERIA_CAN_CARRY                             :can carry
+STR_RV_TRANSPORT_CRITERIA_IS_CARRYING                           :is carrying
+STR_RV_TRANSPORT_CRITERIA_MIN_WAIT                              :Minimum waiting time
+STR_RV_TRANSPORT_CRITERIA_DEST                                  :Declared destination
+STR_RV_TRANSPORT_CRITERIA_NEXT_STOP                             :the next stop
+STR_RV_TRANSPORT_CRITERIA_LOAD_STATE_ANY                        :Road vehicles: any
+STR_RV_TRANSPORT_CRITERIA_LOAD_STATE_EMPTY                      :Road vehicles: empty only
+STR_RV_TRANSPORT_CRITERIA_LOAD_STATE_FULL                       :Road vehicles: full only
+STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_NONE                         :Wait at least: no minimum
+STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_DAYS                         :Wait at least: {NUM} day{P "" s}
+STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_1                            :Wait at least: 1 day
+STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_2                            :Wait at least: 2 days
+STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_5                            :Wait at least: 5 days
+STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_10                           :Wait at least: 10 days
+STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_30                           :Wait at least: 30 days
+STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_60                           :Wait at least: 60 days
+STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_CUSTOM                       :Wait at least: a custom time
+STR_RV_TRANSPORT_CRITERIA_DEST_SPECIFIC                         :a specific station
 STR_ORDER_TOOLTIP_FULL_LOAD                                     :{BLACK}Change the loading behaviour of the highlighted order
 
 STR_ORDER_TOGGLE_UNLOAD                                         :{BLACK}Unload all

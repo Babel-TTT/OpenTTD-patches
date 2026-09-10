@@ -2634,6 +2634,7 @@ static inline Vehicle *GetVehicleFromWindow(const Window *w)
 			case WindowClass::VehicleRefit:
 			case WindowClass::VehicleCargoTypeLoadOrders:
 			case WindowClass::VehicleCargoTypeUnloadOrders:
+			case WindowClass::VehicleRVTransportCriteria:
 			case WindowClass::ScheduledDispatchSlots:
 				if (wn != VehicleID::Invalid()) return Vehicle::GetIfValid(wn);
 				break;

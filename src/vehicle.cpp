@@ -1226,6 +1226,7 @@ void Vehicle::PreDestructor()
 		CloseWindowById(WindowClass::ScheduledDispatchSlots, this->index);
 		CloseWindowById(WindowClass::VehicleCargoTypeLoadOrders, this->index);
 		CloseWindowById(WindowClass::VehicleCargoTypeUnloadOrders, this->index);
+		CloseWindowById(WindowClass::VehicleRVTransportCriteria, this->index);
 		CloseWindowById(WindowClass::VehicleOrderImportErrors, this->index);
 		SetWindowDirty(WindowClass::Company, this->owner);
 		OrderBackup::ClearVehicle(this);
