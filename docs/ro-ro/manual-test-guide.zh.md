@@ -49,10 +49,19 @@ cd D:\CNS\ottd\OpenTTD-patches-rvtransport\build
 
 1. 打开车辆订单窗口（点车辆 → "Orders"）；
 2. 选中要设置的**去车站**订单；
-3. 点底部**"装货方式"下拉**（平时显示 No loading / Full load 等的那个），下拉最下面多了两项：
-   - **Load road vehicles** — 让这辆车在该站**装载**等待的道路载具（对卡车而言：到站后等待被装走；对火车/船/机而言：到站把等待的卡车装走）；
-   - **Unload road vehicles** — 让这辆车在该站**卸下**它载着的道路载具（卡车会被放到该站的公路停靠站格上）。
-   再次点同一项可取消（开关式）。
+3. 两个下拉里分别有道路载具相关项（**勾选框**，可以多选，勾选状态会立刻刷新）：
+
+   **装货方式下拉**（平时显示 No loading / Full load 的那个）底部：
+   - **Load road vehicles**（对卡车而言：**等待被运载**）— 在该站装载等待的道路载具 / 卡车在此等待被装走；
+   - **Only road vehicles for the next stop**（缩进一级）— 只装"目的地就是本车下一站"的道路载具（开启装载时**默认勾上**）；
+   - **Wait for road vehicles**（缩进一级，仅载体）— 在该站一直等到有道路载具装上来才发车（语义同 "Full load"，**无限等**）。
+
+   **卸货方式下拉**（平时显示 Unload / Transfer 的那个）底部：
+   - **Unload road vehicles**（对卡车而言：**在此被卸下**）— 在该站把载着的道路载具放下 / 卡车在此被放下。
+
+   再点一次同一个勾选框即可取消。取消"装载道路载具"会连带取消它的两个子项（匹配、等待）；勾选匹配或等待时会自动把"装载"一起勾上——这些组合规则都是强制的，不会出现"只勾了匹配却没装车"这种矛盾状态。
+
+   > 提示：卡车自己的订单**不会**出现"只装载前往下一站"这一项（对它没有意义）。旧存档里如果残留了这个位，只要重新勾一次"等待被运载"就会被自动清掉；显示上也会忽略它。
 4. 设置好后回到游戏，让车辆按订单跑即可。
 
 **控制台备用方式**（GUI 出问题或想快速验证时）：
@@ -61,6 +70,10 @@ cd D:\CNS\ottd\OpenTTD-patches-rvtransport\build
 rvtransport list                          # 看车辆 ID 与状态
 rvtransport orderflag <车辆ID> load        # 等价于下拉里的 Load road vehicles
 rvtransport orderflag <车辆ID> unload      # 等价于 Unload road vehicles
+rvtransport orders <车辆ID>                # 打印每条订单的 RoRo 旗标
+rvtransport toggle <车辆ID> <订单序号> load|unload|dest|wait   # 与勾选框完全相同的规则（含连带关系）
+rvtransport setflags <车辆ID> <订单序号> <值>                    # 直接把旗标设成某值（便于测试）
+rvtransport modify <车辆ID> <订单序号> load|unload|dest|wait     # 走与 GUI 相同的命令路径
 ```
 
 说明：`orderflag` 会同时写"车辆当前订单"和"订单列表中的当前项"；用 GUI 下拉则直接写订单列表项，更稳。
@@ -69,6 +82,7 @@ rvtransport orderflag <车辆ID> unload      # 等价于 Unload road vehicles
 
 | 阶段 | 期望 |
 |---|---|
+| 订单设置后 | 订单行会**逐项列出**该订单的 RoRo 设置（例如 `去 A 站 装载道路载具 只装载去下一站的道路载具`）；"装货方式"按钮显示"装载道路载具"（卡车显示"等待被运载"），"卸货方式"按钮显示"卸载道路载具"（卡车显示"在此被卸下"） |
 | 卡车到达 A 站后 | 卡车**停住不动**（进入"等待被运载"）；`rvtransport state <卡车ID>` 显示 `flags=1`、`stopped=1` |
 | 火车到达 A 站后 | 卡车**从路网消失**（画面上看不到它了）；`rvtransport state <卡车ID>` 显示 `flags=2`、`hidden=1`；`rvtransport list` 里火车的 `carrying=1` |
 | 给火车打上卸载旗标（`rvtransport orderflag <火车ID> unload`）后火车到达 B 站 | 卡车**出现在 B 站的公路停靠站格**上，随后按自己的订单继续行驶；`rvtransport state <卡车ID>` 显示 `flags=0`、`hidden=0`、`tile` 有效 |

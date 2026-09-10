@@ -113,6 +113,48 @@ void RVTransportSetWaiting(Vehicle *rv, bool waiting)
 }
 
 /**
+ * Toggle one road vehicle transport flag of a station order, keeping the combination meaningful:
+ * the destination match and waiting only make sense while road vehicles are loaded, and a road
+ * vehicle's own order never uses the destination match.
+ */
+uint8_t RVTransportToggleOrderFlag(uint8_t flags, uint8_t bit, bool is_road_vehicle)
+{
+	const bool enabling = (flags & bit) == 0;
+
+	switch (bit) {
+		case ORVTF_LOAD:
+			if (enabling) {
+				flags |= ORVTF_LOAD;
+				/* Default to taking only road vehicles heading for the carrier's next stop; the player
+				 * can switch that off again with the entry of its own. */
+				if (is_road_vehicle) {
+					flags &= ~(ORVTF_MATCH_DEST | ORVTF_WAIT);
+				} else {
+					flags |= ORVTF_MATCH_DEST;
+				}
+			} else {
+				flags &= ~(ORVTF_LOAD | ORVTF_MATCH_DEST | ORVTF_WAIT);
+			}
+			break;
+
+		case ORVTF_MATCH_DEST:
+		case ORVTF_WAIT:
+			/* Both are only meaningful while road vehicles are loaded here. */
+			flags = enabling ? (flags | bit | ORVTF_LOAD) : (flags & ~bit);
+			break;
+
+		case ORVTF_UNLOAD:
+			flags = enabling ? (flags | ORVTF_UNLOAD) : (flags & ~ORVTF_UNLOAD);
+			break;
+
+		default:
+			NOT_REACHED();
+	}
+
+	return flags;
+}
+
+/**
  * Load one road vehicle onto a carrier part: the road vehicle leaves the road network
  * and is remembered by the carrier (single tick commit, no intermediate state).
  * @param force skip the cargo class / capacity checks (used by the debug self test).

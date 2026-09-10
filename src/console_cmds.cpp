@@ -4472,6 +4472,8 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		IConsolePrint(CC_HELP, "  rvtransport orderflag <vehicle_id> load|unload");
 		IConsolePrint(CC_HELP, "  rvtransport modify <vehicle_id> <order_index> load|unload|dest   (uses the real order-modify command)");
 		IConsolePrint(CC_HELP, "  rvtransport attach <carrier_id> <rv_id> [force]");
+		IConsolePrint(CC_HELP, "  rvtransport toggle <vehicle_id> <order_nr> load|unload|dest|wait");
+		IConsolePrint(CC_HELP, "  rvtransport setflags <vehicle_id> <order_nr> <flags>");
 		IConsolePrint(CC_HELP, "  rvtransport release <rv_id>");
 		IConsolePrint(CC_HELP, "  rvtransport detach <carrier_id> <station_id>");
 		IConsolePrint(CC_HELP, "  rvtransport selftest");
@@ -4550,7 +4552,8 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		if (StrEqualsIgnoreCase(argv[4], "load")) bit = ORVTF_LOAD;
 		else if (StrEqualsIgnoreCase(argv[4], "unload")) bit = ORVTF_UNLOAD;
 		else if (StrEqualsIgnoreCase(argv[4], "dest")) bit = ORVTF_MATCH_DEST;
-		else { IConsolePrint(CC_ERROR, "flag must be 'load', 'unload' or 'dest'"); return true; }
+		else if (StrEqualsIgnoreCase(argv[4], "wait")) bit = ORVTF_WAIT;
+		else { IConsolePrint(CC_ERROR, "flag must be 'load', 'unload', 'dest' or 'wait'"); return true; }
 		const Order *o = v->GetOrder(order_index);
 		if (o == nullptr) { IConsolePrint(CC_ERROR, "order {} not found (vehicle has {} orders)", order_index, v->GetNumOrders()); return true; }
 		uint8_t nflags = o->GetRVTransportFlags();
@@ -4567,6 +4570,62 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		const bool ok = res.Succeeded();
 		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "modify: {} (vehicle #{}, order {}, station order {}, flags -> {}), error: {}",
 				ok ? "OK" : "FAILED", v->index.base(), order_index, o->IsType(OT_GOTO_STATION), nflags,
+				res.GetErrorMessage() != INVALID_STRING_ID ? GetString(res.GetErrorMessage()) : std::string("<none>"));
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "toggle")) {
+		/* Applies the same flag-consistency rules as the order window's check boxes, so that the
+		 * behaviour of the GUI can be exercised on a dedicated server. */
+		if (argv.size() != 5) return false;
+		Vehicle *v = get_veh(argv[2]);
+		if (v == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		const VehicleOrderID order_index = ParseType<VehicleOrderID>(argv[3]).value_or(INVALID_VEH_ORDER_ID);
+		if (order_index == INVALID_VEH_ORDER_ID) { IConsolePrint(CC_ERROR, "invalid order index"); return true; }
+		uint8_t bit = 0;
+		if (StrEqualsIgnoreCase(argv[4], "load")) bit = ORVTF_LOAD;
+		else if (StrEqualsIgnoreCase(argv[4], "unload")) bit = ORVTF_UNLOAD;
+		else if (StrEqualsIgnoreCase(argv[4], "dest")) bit = ORVTF_MATCH_DEST;
+		else if (StrEqualsIgnoreCase(argv[4], "wait")) bit = ORVTF_WAIT;
+		else { IConsolePrint(CC_ERROR, "flag must be 'load', 'unload', 'dest' or 'wait'"); return true; }
+		const Order *o = v->GetOrder(order_index);
+		if (o == nullptr) { IConsolePrint(CC_ERROR, "order {} not found (vehicle has {} orders)", order_index, v->GetNumOrders()); return true; }
+		const uint8_t old_flags = o->GetRVTransportFlags();
+		const uint8_t nflags = RVTransportToggleOrderFlag(old_flags, bit, v->type == VehicleType::Road);
+		const CompanyID old_local_company = _local_company;
+		const CompanyID old_current_company = _current_company;
+		_local_company = v->owner;
+		_current_company = v->owner;
+		const CommandCost res = CmdModifyOrder(DoCommandFlags{DoCommandFlag::Execute}, v->index, order_index, MOF_RV_TRANSPORT, nflags, INVALID_CARGO, std::string{});
+		_current_company = old_current_company;
+		_local_company = old_local_company;
+		const bool ok = res.Succeeded();
+		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "toggle: {} (vehicle #{} type={} order {} flags {} -> {}), error: {}",
+				ok ? "OK" : "FAILED", v->index.base(), (int)v->type, order_index, old_flags, nflags,
+				res.GetErrorMessage() != INVALID_STRING_ID ? GetString(res.GetErrorMessage()) : std::string("<none>"));
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "setflags")) {
+		/* Raw setter, used to put an order into a known state before testing the toggling rules. */
+		if (argv.size() != 5) return false;
+		Vehicle *v = get_veh(argv[2]);
+		if (v == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		const VehicleOrderID order_index = ParseType<VehicleOrderID>(argv[3]).value_or(INVALID_VEH_ORDER_ID);
+		if (order_index == INVALID_VEH_ORDER_ID) { IConsolePrint(CC_ERROR, "invalid order index"); return true; }
+		const uint8_t nflags = ParseType<uint8_t>(argv[4]).value_or(0);
+		const Order *o = v->GetOrder(order_index);
+		if (o == nullptr) { IConsolePrint(CC_ERROR, "order {} not found (vehicle has {} orders)", order_index, v->GetNumOrders()); return true; }
+		const CompanyID old_local_company = _local_company;
+		const CompanyID old_current_company = _current_company;
+		_local_company = v->owner;
+		_current_company = v->owner;
+		const CommandCost res = CmdModifyOrder(DoCommandFlags{DoCommandFlag::Execute}, v->index, order_index, MOF_RV_TRANSPORT, nflags, INVALID_CARGO, std::string{});
+		_current_company = old_current_company;
+		_local_company = old_local_company;
+		const bool ok = res.Succeeded();
+		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "setflags: {} (vehicle #{} order {} -> {}), error: {}",
+				ok ? "OK" : "FAILED", v->index.base(), order_index, nflags,
 				res.GetErrorMessage() != INVALID_STRING_ID ? GetString(res.GetErrorMessage()) : std::string("<none>"));
 		return true;
 	}

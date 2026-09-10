@@ -48,6 +48,17 @@ bool RVTransportPartCanCarry(const Vehicle *part);
 /** Set/clear the "waiting to be transported" state of a road vehicle. */
 void RVTransportSetWaiting(Vehicle *rv, bool waiting);
 
+/**
+ * Toggle one road vehicle transport flag of a station order, keeping the combination meaningful:
+ * the destination match and waiting only make sense while road vehicles are loaded, and a road
+ * vehicle's own order never uses the destination match.
+ * @param flags Current order flags (ORVTF_* bits).
+ * @param bit The single flag to toggle.
+ * @param is_road_vehicle Whether the order belongs to a road vehicle (rather than to a carrier).
+ * @return The new flags.
+ */
+uint8_t RVTransportToggleOrderFlag(uint8_t flags, uint8_t bit, bool is_road_vehicle);
+
 /** Try to load one road vehicle onto a carrier part. Returns true when carried. */
 bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force = false);
 
