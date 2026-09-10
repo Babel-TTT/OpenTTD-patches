@@ -4590,6 +4590,31 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		return true;
 	}
 
+	if (StrEqualsIgnoreCase(argv[1], "sim")) {
+		/* Simulate the carrier-side scan: put a road vehicle into the waiting state at the carrier's
+		 * current order station, then run exactly the same lookup + attach the load loop uses. */
+		if (argv.size() < 4) return false;
+		Vehicle *carrier = get_veh(argv[2]);
+		Vehicle *rv = get_veh(argv[3]);
+		if (carrier == nullptr || rv == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		carrier = carrier->First();
+		const StationID st_id = carrier->current_order.GetDestination().ToStationID();
+		Station *st = Station::GetIfValid(st_id);
+		if (st == nullptr) { IConsolePrint(CC_ERROR, "carrier's current order has no station destination"); return true; }
+
+		rv->last_station_visited = st->index;
+		RVTransportSetWaiting(rv, true);
+		IConsolePrint(CC_DEFAULT, "sim: rv #{} waiting at station #{} flags={} stopped={}",
+				rv->index.base(), st->index.base(), rv->rv_transport_flags, rv->vehstatus.Test(VehState::Stopped));
+
+		const uint8_t rvf = carrier->current_order.GetRVTransportFlags();
+		Vehicle *found = RVTransportFindWaitingAtStation(st, carrier, (rvf & ORVTF_MATCH_DEST) != 0);
+		const bool attached = (found != nullptr) ? RVTransportAttachAuto(found->First() != nullptr ? carrier : carrier, found, false) : false;
+		IConsolePrint(attached ? CC_DEFAULT : CC_ERROR, "sim: scan found={} attached={} carrying={} (carrier order rvflags={} declared dest of rv={})",
+				found != nullptr, attached, RVTransportCountOnCarrier(carrier), rvf, RVTransportGetDeclaredDestination(rv).base());
+		return true;
+	}
+
 	if (StrEqualsIgnoreCase(argv[1], "attach")) {
 		if (argv.size() < 4) return false;
 		Vehicle *carrier = get_veh(argv[2]);

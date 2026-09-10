@@ -150,7 +150,7 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 	UpdateVehicleTileHash(rv, true);   // off the road network (like virtual vehicles)
 	rv->UpdateIsDrawn();
 
-	part->MarkDirty();                 // refresh carrier weight on next recalculation
+	carrier->MarkDirty();              // refresh carrier weight; must be the front (CargoChanged asserts this->First() == this)
 	return true;
 }
 
