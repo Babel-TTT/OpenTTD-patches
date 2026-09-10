@@ -8,3 +8,13 @@ docs/source/*
 /out
 /vcpkg_installed
 *.tmp
+
+# Local RoRo test-run artefacts: keep the scripts, ignore logs/savegame copies/configs
+/testrun/*
+!/testrun/*.ps1
+
+# In case the game is ever run from the repository root
+/*.sav
+/*.scn
+/openttd.log
+/crash-*

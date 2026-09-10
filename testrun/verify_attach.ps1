@@ -1,0 +1,40 @@
+# Verify the RoRo attach/detach transactions on the tester's savegame (read-only load).
+param([string]$saveName = 'Wunfingley Market Transport, 1950-03-14.sav')
+
+$root = 'D:\CNS\ottd\OpenTTD-patches-rvtransport'
+$exe  = Join-Path $root 'build\openttd.exe'
+$cfg  = Join-Path $root 'build\roro-test.cfg'
+$tr   = Join-Path $root 'testrun'
+$sav  = Join-Path $root ("build\save\" + $saveName)
+if (-not (Test-Path $sav)) { Write-Output "savegame not found: $sav"; exit 1 }
+
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = $exe
+$psi.Arguments = "-c `"$cfg`" -D -g `"$sav`""
+$psi.UseShellExecute = $false
+$psi.RedirectStandardInput = $true
+$psi.RedirectStandardOutput = $true
+$psi.RedirectStandardError = $true
+$psi.WorkingDirectory = $root
+$p = [System.Diagnostics.Process]::Start($psi)
+$o = $p.StandardOutput.ReadToEndAsync()
+$e = $p.StandardError.ReadToEndAsync()
+Start-Sleep -Seconds 45
+$cmds = @(
+    'rvtransport list',
+    'rvtransport attach firsttrain firstrv force',
+    'rvtransport state firstrv',
+    'rvtransport list',
+    'rvtransport detach firsttrain 0',
+    'rvtransport state firstrv',
+    'quit'
+)
+foreach ($c in $cmds) { try { $p.StandardInput.WriteLine($c); $p.StandardInput.Flush() } catch {}; Start-Sleep -Seconds 5 }
+Start-Sleep -Seconds 5
+if (-not $p.HasExited) { try { $p.Kill() } catch {} }
+Start-Sleep -Seconds 2
+$txt = ""
+try { $txt += $o.Result } catch {}
+try { $txt += $e.Result } catch {}
+[System.IO.File]::WriteAllText((Join-Path $tr 'log_attach_verify.txt'), $txt, (New-Object System.Text.UTF8Encoding($false)))
+$txt -split "`r?`n" | Where-Object { $_ -match 'attach|detach|transport state|vehicle #|rv #|carrying|on_board|Assertion|crash|SELFTEST' } | Select-Object -First 30 | ForEach-Object { Write-Output $_ }
