@@ -269,7 +269,7 @@ M1 → M2 → M3 → M4 必须依序（各自收口即"最小可玩"增量）；
 | 风险B | ✅ | 筛选求值**只读**，新变量清单禁副作用；OT_SLOT 领/放只由订单原语执行，扫描内绝不 TryAcquire。 |
 | 风险C | ⛔ | XSLF 特征 XSCF_NULL 恒写 → 0.73.1 打开新档为优雅拒绝并提示（非崩溃）；只需发布说明 + 验证拒绝文案。 |
 
-## 附录 D：实现进度与验证手册（截至 M2b，2026-09-10）
+## 附录 D：实现进度与验证手册（截至 M8 主体完成，2026-09-10）
 
 ### D.1 工作副本与提交
 
@@ -277,7 +277,7 @@ M1 → M2 → M3 → M4 必须依序（各自收口即"最小可玩"增量）；
 |---|---|
 | 开发副本 | `D:\CNS\ottd\OpenTTD-patches-rvtransport`（由 0.73.1 基线复制） |
 | 分支 | `feature/road-veh-transport` |
-| 提交 | `bf70a8b4da` M1 存档骨架 → `cdf4cef8e0` M2a 核心事务 → `780396da90` M2b 订单驱动装卸 |
+| 提交 | 分支 `feature/road-veh-transport` 共 22 个提交（`611aabd7ba`..`1ff9a7ff61`）：`bf70a8b4da` M1 存档骨架 → `cdf4cef8e0` M2a 核心事务 → `780396da90` M2b 订单驱动装卸 → `79937c9ecd` 载体等车 → `60d51de6b0` 载体状态串 → `7ba6ce0d55` 载体销毁释放 → `1ff9a7ff61` 载体类型收紧 + release 调试命令 |
 | 纯基线副本（旧档生成器） | `D:\CNS\ottd\OpenTTD-patches-baseline`（未改动，已构建） |
 | 构建方式 | MSYS2/MinGW64：`D:\msys64\mingw64\bin` 的 cmake+ninja+g++；`cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DOPTION_USE_ASSERTS=ON`，然后 `cmake --build build --target openttd` |
 
@@ -294,6 +294,8 @@ M1 → M2 → M3 → M4 必须依序（各自收口即"最小可玩"增量）；
 | `smoke_m2a.ps1` | 空地图加载 + 跑 `rvtransport` 命令 | `SMOKE: no crash detected` |
 | `verify_intransit.ps1` | **收运中存档往返**：装载 → save → 重新加载 → 检查被运载状态是否保留 → 再落地 | `RESULT: PASS (carried state survives save/load, and unload still works)` |
 | `verify_sim.ps1` | 在真实存档上跑"等待 → 站内扫描 → 装载"完整链路 | `sim: scan found=true attached=true carrying=1` |
+| `verify_attach.ps1` | 强制装载/卸载事务与重量记账 | `attach`/`detach: ok`、`flags=0 hidden=false by=1048575` |
+| `verify_release.ps1` | **释放路径**（与载体销毁同一函数）：装载 → `rvtransport release` → 检查状态 | `RESULT: PASS (carried vehicle released and back on the road)` |
 | `verify_user_save.ps1` | 订单命令链验证（`rvtransport modify` load/unload/dest） | `modify: OK` |
 | `run_selftest.ps1` | （**已停用**）批量用户存档跑 selftest——用户存档过大/带 NewGRF，不适用 | — |
 
@@ -301,13 +303,19 @@ M1 → M2 → M3 → M4 必须依序（各自收口即"最小可玩"增量）；
 
 ```
 rvtransport                      # 帮助
-rvtransport state <vehicle_id>   # 打印 RoRo 状态（flags/tile/hidden/宿主/重量）
+rvtransport list                 # 列出车辆 ID / 类型 / 状态 / 载运数
+rvtransport state <vehicle_id>   # 打印 RoRo 状态（flags/tile/hidden/宿主/节号/重量）
 rvtransport wait <vehicle_id> on|off
-rvtransport orderflag <vehicle_id> load|unload   # 给当前订单与订单列表项打旗标
+rvtransport orderflag <vehicle_id> load|unload|dest|wait   # 给当前订单与订单列表项打旗标
+rvtransport modify <vehicle_id> <order_nr> load|unload|dest|wait  # 走与 GUI 相同的命令路径
+rvtransport sim <carrier_id> <rv_id>   # 一键链路仿真（等待 → 站内扫描 → 装载）
 rvtransport attach <carrier_id> <rv_id> [force]
 rvtransport detach <carrier_id> <station_id>
+rvtransport release <rv_id>      # 紧急释放（与载体销毁走同一函数）
 rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（需要地图上有车）
 ```
+
+> ⚠ `delete_vehicle_id` 只在**非专用服务器**（有 GUI 的客户端）里注册，专用服务器（`-D`）下不可用，因此"载体被销毁"的自动化验证改用 `rvtransport release`（同一释放函数）。
 
 ### D.5 进度与待办
 
@@ -317,8 +325,10 @@ rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（�
 - ✅ **M3a/M3b**：目的地匹配筛选（`ORVTF_MATCH_DEST`，"不匹配即跳过"）；订单类型白名单修复（"不能执行这个命令"根因）。
 - ✅ **M4a**：被运载车辆从 tick 缓存/每日处理/经济/列表/组/基建统计/联机统计/灾难/绘制中豁免（仿 GVSF_VIRTUAL）。
 - ✅ **M5a–d**：订单窗口入口（装货方式下拉三项）、按载具类型文案、订单行与按钮状态显示、状态串、启用装载时默认打开目的地匹配。
+- ✅ **M6**：载体"等待道路载具"（`ORVTF_WAIT`，实现方式是在 `LoadUnloadVehicle` 里压住 `finished_loading`——语义与 "Full load" 完全一致，**无限等待**，引擎没有超时兜底）；载体状态串追加"正在运载 N 辆道路载具"。
+- ✅ **M7**：卖出保护（被运载车辆 / 载有车辆的载体都不能卖）；载体销毁时自动释放所载车辆（`Vehicle::PreDestructor` → `RVTransportForceRelease`，放回载体所在格）；载体类型收紧为火车/船/机。
 - ✅ **人工验收**：玩家实测确认"卡车自动等待 → 被装载 → 被卸下 → 继续执行调度"全流程正常。
-- ✅ **M8（部分）**：**收运中存档往返 PASS**（状态/宿主/节号/重量完整保留，读档后仍可落地）；**旧档兼容重跑 PASS**；自读自档 PASS；链路仿真与订单命令链 PASS。
+- ✅ **M8（部分）**：**收运中存档往返 PASS**（状态/宿主/节号/重量完整保留，读档后仍可落地）；**旧档兼容重跑 PASS**；自读自档 PASS；链路仿真、强制装卸、订单命令链、释放路径全部 PASS（脚本清单见 D.3）。
 - 🔧 关键修复（都是实测暴露后定位）：`Order::AssignOrder()` 拷贝时丢弃 RoRo 旗标（车辆读到的是丢失后的当前订单）；装载时对非车头调用 `MarkDirty()` 触发 `CargoChanged()` 断言；订单类型白名单未允许新字段。
-- ⏳ **待办**：载体"等待道路载具"语义（火车现在不为等车延迟发车）；铰接道路车辆上下车；载运清单 UI；船/机实机验证；联机 sync test；性能验收；调试命令在合并前剥离。
+- ⏳ **待办**：铰接（多节）道路车辆上下车；车辆详情窗口里的"载运清单"；船/机载体实机走查（手测步骤见 `manual-test-guide.zh.md` 第 6 节）；载体事故销毁路径实机走查；联机 sync test；性能验收；合并前剥离 `rvtransport` 调试命令。
 
