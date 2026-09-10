@@ -36,6 +36,7 @@
 #include "cheat_type.h"
 #include "viewport_func.h"
 #include "order_dest_func.h"
+#include "roadveh_transport.h"
 #include "vehiclelist.h"
 #include "tracerestrict.h"
 #include "train.h"
@@ -2060,6 +2061,12 @@ CommandCost CmdModifyOrder(DoCommandFlags flags, VehicleID veh, VehicleOrderID s
 			if (IsFullLoadOrderLoadType(static_cast<OrderLoadType>(data)) && v->HasUnbunchingOrder()) return CommandCost(STR_ERROR_UNBUNCHING_NO_FULL_LOAD);
 			break;
 
+		case MOF_RV_TRANSPORT:
+			/* Road vehicle transport (RoRo): only meaningful for station orders, value = load/unload flags. */
+			if (!order->IsType(OT_GOTO_STATION)) return CMD_ERROR;
+			if ((data & ~(ORVTF_LOAD | ORVTF_UNLOAD)) != 0) return CMD_ERROR;
+			break;
+
 		case MOF_DEPOT_ACTION:
 			if (data >= DA_END) return CMD_ERROR;
 
@@ -2368,6 +2375,10 @@ CommandCost CmdModifyOrder(DoCommandFlags flags, VehicleID veh, VehicleOrderID s
 			case MOF_LOAD:
 				order->SetLoadType(static_cast<OrderLoadType>(data));
 				if (static_cast<OrderLoadType>(data) == OrderLoadType::NoLoad) order->SetRefit(CARGO_NO_REFIT);
+				break;
+
+			case MOF_RV_TRANSPORT:
+				order->GetRVTransportFlagsRef() = static_cast<uint8_t>(data);
 				break;
 
 			case MOF_CARGO_TYPE_LOAD:

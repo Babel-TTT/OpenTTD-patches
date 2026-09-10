@@ -297,6 +297,7 @@ enum ModifyOrderFlags : uint8_t {
 	MOF_COLOUR,          ///< Change the colour value
 	MOF_LABEL_TEXT,      ///< Change the label text value
 	MOF_DEPARTURES_SUBTYPE, ///< Change the label departures subtype
+	MOF_RV_TRANSPORT,    ///< Passes road vehicle transport (RoRo) load/unload flags for a station order.
 	MOF_END
 };
 

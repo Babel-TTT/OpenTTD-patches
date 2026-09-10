@@ -22,6 +22,7 @@
 #include "tilehighlight_func.h"
 #include "network/network.h"
 #include "station_base.h"
+#include "roadveh_transport.h"
 #include "industry.h"
 #include "waypoint_base.h"
 #include "core/geometry_func.hpp"
@@ -567,7 +568,13 @@ static const StringID _order_full_load_dropdown[] = {
 	STR_ORDER_DROP_NO_LOADING,
 	STR_EMPTY,
 	STR_ORDER_DROP_CARGO_TYPE_LOAD,
+	STR_ORDER_DROP_LOAD_ROAD_VEHICLES,
+	STR_ORDER_DROP_UNLOAD_ROAD_VEHICLES,
 };
+
+/** Dropdown indices of the road vehicle transport (RoRo) entries in _order_full_load_dropdown. */
+static const int ODDI_RV_TRANSPORT_LOAD = 7;
+static const int ODDI_RV_TRANSPORT_UNLOAD = 8;
 
 static const StringID _order_unload_dropdown[] = {
 	STR_ORDER_DROP_UNLOAD_IF_ACCEPTED,
@@ -3188,7 +3195,16 @@ public:
 				if (this->GetWidget<NWidgetLeaf>(widget)->ButtonHit(pt)) {
 					this->OrderClick_FullLoad(OrderLoadType::FullLoadAny, true);
 				} else {
-					ShowDropDownMenu(this, _order_full_load_dropdown, to_underlying(this->vehicle->GetOrder(this->OrderGetSel())->GetLoadType()), WID_O_FULL_LOAD, 0, 0x22 /* 010 0010 */, 0, DDSF_SHARED);
+					const Order *lo = this->vehicle->GetOrder(this->OrderGetSel());
+					int sel = (lo != nullptr) ? to_underlying(lo->GetLoadType()) : 0;
+					if (lo != nullptr) {
+						if ((lo->GetRVTransportFlags() & ORVTF_LOAD) != 0) {
+							sel = ODDI_RV_TRANSPORT_LOAD;
+						} else if ((lo->GetRVTransportFlags() & ORVTF_UNLOAD) != 0) {
+							sel = ODDI_RV_TRANSPORT_UNLOAD;
+						}
+					}
+					ShowDropDownMenu(this, _order_full_load_dropdown, sel, WID_O_FULL_LOAD, 0, 0x22 /* 010 0010 */, 0, DDSF_SHARED);
 				}
 				break;
 
@@ -3716,6 +3732,18 @@ public:
 				break;
 
 			case WID_O_FULL_LOAD:
+				if (index == ODDI_RV_TRANSPORT_LOAD || index == ODDI_RV_TRANSPORT_UNLOAD) {
+					/* RoRo: toggle loading/unloading of road vehicles on this station order. */
+					const VehicleOrderID sel = this->OrderGetSel();
+					const Order *o = this->vehicle->GetOrder(sel);
+					if (o != nullptr) {
+						uint8_t flags = o->GetRVTransportFlags();
+						const uint8_t bit = (index == ODDI_RV_TRANSPORT_LOAD) ? ORVTF_LOAD : ORVTF_UNLOAD;
+						flags = ((flags & bit) != 0) ? (flags & ~bit) : (flags | bit);
+						this->ModifyOrder(sel, MOF_RV_TRANSPORT, flags);
+					}
+					break;
+				}
 				this->OrderClick_FullLoad(static_cast<OrderLoadType>(index));
 				break;
 

@@ -4718,6 +4718,8 @@ STR_ORDER_DROP_LOAD_IF_POSSIBLE                                 :Load if availab
 STR_ORDER_DROP_FULL_LOAD_ALL                                    :Full load all cargo
 STR_ORDER_DROP_FULL_LOAD_ANY                                    :Full load any cargo
 STR_ORDER_DROP_NO_LOADING                                       :No loading
+STR_ORDER_DROP_LOAD_ROAD_VEHICLES                               :Load road vehicles
+STR_ORDER_DROP_UNLOAD_ROAD_VEHICLES                             :Unload road vehicles
 STR_ORDER_TOOLTIP_FULL_LOAD                                     :{BLACK}Change the loading behaviour of the highlighted order
 
 STR_ORDER_TOGGLE_UNLOAD                                         :{BLACK}Unload all
