@@ -590,7 +590,28 @@ enum RVTransportDropDownResult {
 	RVDD_MATCH_DEST = 0x101, ///< Only road vehicles whose declared destination is the next stop.
 	RVDD_WAIT       = 0x102, ///< Keep waiting at this station until road vehicles have been loaded.
 	RVDD_UNLOAD     = 0x103, ///< Unload road vehicles here / be unloaded here.
+	RVDD_LOAD_STATE = 0x104, ///< Selection criterion "load state of the candidate", cycles through its values.
+	RVDD_MIN_WAIT   = 0x105, ///< Selection criterion "minimum waiting time of the candidate", cycles through presets.
 };
+
+/** Waiting times which the "minimum waiting time" selection criterion cycles through (in days). */
+static const uint16_t _rv_transport_min_wait_presets[] = { 0, 1, 2, 5, 10, 30, 60 };
+
+/** Text of the load state selection criterion, e.g. "Road vehicles: empty only". */
+static std::string RVTransportLoadStateCriterionText(uint8_t state)
+{
+	StringID value = STR_ORDER_RV_LOAD_STATE_ANY;
+	if (state == RVTLS_EMPTY) value = STR_ORDER_RV_LOAD_STATE_EMPTY;
+	if (state == RVTLS_FULL) value = STR_ORDER_RV_LOAD_STATE_FULL;
+	return GetString(STR_ORDER_DROP_RV_LOAD_STATE, GetString(value));
+}
+
+/** Text of the minimum waiting time selection criterion, e.g. "Wait at least: 5 days". */
+static std::string RVTransportMinWaitCriterionText(uint16_t days)
+{
+	const std::string value = (days == 0) ? GetString(STR_ORDER_RV_MIN_WAIT_NONE) : GetString(STR_ORDER_RV_MIN_WAIT_DAYS, days);
+	return GetString(STR_ORDER_DROP_RV_MIN_WAIT, value);
+}
 
 enum OrderDropDownID {
 	ODDI_GO_TO,
@@ -953,6 +974,29 @@ void DrawOrderString(const Vehicle *v, const Order *order, int order_index, int 
 				if (!is_rv && (rvf & ORVTF_WAIT) != 0) {
 					line.push_back(' ');
 					AppendStringInPlace(line, STR_ORDER_DROP_WAIT_FOR_ROAD_VEHICLES);
+				}
+				/* RoRo: the selection criteria of a carrier's load order (they can also be set from
+				 * the game console, so show them even when the order window has no entry for them). */
+				if (!is_rv) {
+					if (order->GetRVTransportLoadState() == RVTLS_EMPTY || order->GetRVTransportLoadState() == RVTLS_FULL) {
+						line.push_back(' ');
+						AppendStringInPlace(line, STR_ORDER_DROP_RV_LOAD_STATE,
+								GetString(order->GetRVTransportLoadState() == RVTLS_EMPTY ? STR_ORDER_RV_LOAD_STATE_EMPTY : STR_ORDER_RV_LOAD_STATE_FULL));
+					}
+					if (order->GetRVTransportMinWait() != 0) {
+						line.push_back(' ');
+						AppendStringInPlace(line, STR_ORDER_DROP_RV_MIN_WAIT,
+								GetString(STR_ORDER_RV_MIN_WAIT_DAYS, order->GetRVTransportMinWait()));
+					}
+					if (order->GetRVTransportCargoMode() != RVTC_ANY && IsValidCargoType(static_cast<CargoType>(order->GetRVTransportCargo()))) {
+						line.push_back(' ');
+						AppendStringInPlace(line, order->GetRVTransportCargoMode() == RVTC_CAN_CARRY ? STR_ORDER_RV_CARGO_CAN_CARRY : STR_ORDER_RV_CARGO_IS_CARRYING,
+								CargoSpec::Get(static_cast<CargoType>(order->GetRVTransportCargo()))->name);
+					}
+					if (order->GetRVTransportDestStation() != 0 && Station::IsValidID(StationID(order->GetRVTransportDestStation() - 1))) {
+						line.push_back(' ');
+						AppendStringInPlace(line, STR_ORDER_RV_DEST_STATION, StationID(order->GetRVTransportDestStation() - 1));
+					}
 				}
 			}
 			break;
@@ -1797,6 +1841,10 @@ private:
 				list.push_back(MakeDropDownListCheckedItem((rvf & ORVTF_LOAD) != 0, STR_ORDER_DROP_LOAD_ROAD_VEHICLES, RVDD_LOAD));
 				list.push_back(MakeDropDownListCheckedItem((rvf & ORVTF_MATCH_DEST) != 0, STR_ORDER_DROP_RV_MATCH_DEST, RVDD_MATCH_DEST, false, false, 1));
 				list.push_back(MakeDropDownListCheckedItem((rvf & ORVTF_WAIT) != 0, STR_ORDER_DROP_WAIT_FOR_ROAD_VEHICLES, RVDD_WAIT, false, false, 1));
+				/* Selection criteria: these entries show their current value and advance it when
+				 * clicked (like the coupling parameters of the px-patch coupling feature). */
+				list.push_back(MakeDropDownListIndentStringItem(1, RVTransportLoadStateCriterionText(order->GetRVTransportLoadState()), RVDD_LOAD_STATE));
+				list.push_back(MakeDropDownListIndentStringItem(1, RVTransportMinWaitCriterionText(order->GetRVTransportMinWait()), RVDD_MIN_WAIT));
 			}
 		}
 		return list;
@@ -1841,6 +1889,35 @@ private:
 		const uint8_t flags = RVTransportToggleOrderFlag(order->GetRVTransportFlags(), bit,
 				this->vehicle->type == VehicleType::Road);
 		this->ModifyOrder(sel, MOF_RV_TRANSPORT, flags);
+	}
+
+	/**
+	 * Advance one of the cycling road vehicle transport selection criteria of the selected order to
+	 * its next value (the order window shows the current value as the entry's text).
+	 * @param load_state Cycle the load state criterion instead of the minimum waiting time.
+	 */
+	void CycleRVTransportCriterion(bool load_state)
+	{
+		const VehicleOrderID sel = this->OrderGetSel();
+		const Order *order = this->vehicle->GetOrder(sel);
+		if (order == nullptr) return;
+
+		if (load_state) {
+			const uint8_t current = order->GetRVTransportLoadState();
+			const uint8_t next = (current == RVTLS_ANY) ? RVTLS_EMPTY : ((current == RVTLS_EMPTY) ? RVTLS_FULL : RVTLS_ANY);
+			this->ModifyOrder(sel, MOF_RV_LOAD_STATE, next);
+			return;
+		}
+
+		const uint16_t current = order->GetRVTransportMinWait();
+		uint16_t next = _rv_transport_min_wait_presets[0];
+		for (uint i = 0; i < lengthof(_rv_transport_min_wait_presets); i++) {
+			if (_rv_transport_min_wait_presets[i] == current) {
+				next = _rv_transport_min_wait_presets[(i + 1) % lengthof(_rv_transport_min_wait_presets)];
+				break;
+			}
+		}
+		this->ModifyOrder(sel, MOF_RV_MIN_WAIT, next);
 	}
 
 	/**
@@ -3847,6 +3924,13 @@ public:
 					 * stays open and is rebuilt so that the check boxes reflect the new state. */
 					this->ToggleRVTransportFlag((index == RVDD_LOAD) ? ORVTF_LOAD :
 							((index == RVDD_MATCH_DEST) ? ORVTF_MATCH_DEST : ORVTF_WAIT));
+					const Order *o = this->vehicle->GetOrder(this->OrderGetSel());
+					ReplaceDropDownList(this, this->BuildLoadDropDownList(), (o != nullptr) ? to_underlying(o->GetLoadType()) : 0);
+					break;
+				}
+				if (index == RVDD_LOAD_STATE || index == RVDD_MIN_WAIT) {
+					/* RoRo: advance a selection criterion; the list stays open and shows the new value. */
+					this->CycleRVTransportCriterion(index == RVDD_LOAD_STATE);
 					const Order *o = this->vehicle->GetOrder(this->OrderGetSel());
 					ReplaceDropDownList(this, this->BuildLoadDropDownList(), (o != nullptr) ? to_underlying(o->GetLoadType()) : 0);
 					break;

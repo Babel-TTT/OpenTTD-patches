@@ -4727,6 +4727,16 @@ STR_ORDER_DROP_RV_MATCH_DEST                                    :Only road vehic
 STR_ORDER_DROP_WAIT_FOR_ROAD_VEHICLES                           :Wait for road vehicles
 STR_ORDER_DROP_WAIT_TO_BE_TRANSPORTED                           :Wait to be transported
 STR_ORDER_DROP_BE_UNLOADED_HERE                                 :Be unloaded here
+STR_ORDER_DROP_RV_LOAD_STATE                                    :Road vehicles: {STRING}
+STR_ORDER_RV_LOAD_STATE_ANY                                     :any
+STR_ORDER_RV_LOAD_STATE_EMPTY                                   :empty only
+STR_ORDER_RV_LOAD_STATE_FULL                                    :full only
+STR_ORDER_DROP_RV_MIN_WAIT                                      :Wait at least: {STRING}
+STR_ORDER_RV_MIN_WAIT_NONE                                      :no minimum
+STR_ORDER_RV_MIN_WAIT_DAYS                                      :{NUM} day{P "" s}
+STR_ORDER_RV_CARGO_CAN_CARRY                                    :Cargo: {STRING}
+STR_ORDER_RV_CARGO_IS_CARRYING                                  :Carrying: {STRING}
+STR_ORDER_RV_DEST_STATION                                       :Destination: {STATION}
 STR_ORDER_TOOLTIP_FULL_LOAD                                     :{BLACK}Change the loading behaviour of the highlighted order
 
 STR_ORDER_TOGGLE_UNLOAD                                         :{BLACK}Unload all

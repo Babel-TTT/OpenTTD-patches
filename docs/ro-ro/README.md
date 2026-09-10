@@ -58,8 +58,11 @@ parameterised style of the px-patch train coupling feature (whose `CoupleOrderLo
 | declared destination | any / next stop / a specific station | "next stop" is what the *Only road vehicles for the next stop* entry has always done |
 
 The criteria are stored per station order (5 extra fields in `OrderExtraInfo`, behind extended
-savegame feature version 2, so older saves simply have no criteria). They can currently be set from
-the game console (`rvtransport criteria …`); the order window entries for them are still to come.
+savegame feature version 2, so older saves simply have no criteria). Two of them are editable from
+the load dropdown of the order window as cycling entries which show their current value
+(*Road vehicles: any/empty only/full only* and *Wait at least: no minimum/1 day/…/60 days*); the
+cargo and specific-station criteria are set from the game console (`rvtransport criteria …`). All
+active criteria are listed in the order row, whichever way they were set.
 
 The order row lists **every** part of the setting that is active (e.g. "Go to A, load road vehicles,
 only road vehicles for the next stop"), and a waiting/carried road vehicle shows the status
@@ -188,8 +191,8 @@ path is exercised through `rvtransport release` (the same `RVTransportForceRelea
 
 Work that is deliberately **not** in this branch yet:
 
-* **No order window entries for the selection criteria** (they are console-only for now:
-  `rvtransport criteria …`).
+* **No order window entries for the cargo and specific-station criteria** (those two need a cargo and
+  a station picker; they can be set from the console for now).
 * **Articulated (multi-part) road vehicles are handled by the transport code**, but the end-to-end
   verification still needs a savegame whose NewGRF vehicle set provides articulated road vehicles
   (the default game content has none). Note that the engine itself does not let articulated road
