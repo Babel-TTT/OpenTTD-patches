@@ -4472,6 +4472,7 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		IConsolePrint(CC_HELP, "  rvtransport orderflag <vehicle_id> load|unload");
 		IConsolePrint(CC_HELP, "  rvtransport modify <vehicle_id> <order_index> load|unload|dest   (uses the real order-modify command)");
 		IConsolePrint(CC_HELP, "  rvtransport attach <carrier_id> <rv_id> [force]");
+		IConsolePrint(CC_HELP, "  rvtransport release <rv_id>");
 		IConsolePrint(CC_HELP, "  rvtransport detach <carrier_id> <station_id>");
 		IConsolePrint(CC_HELP, "  rvtransport selftest");
 		return true;
@@ -4612,6 +4613,17 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		const bool attached = (found != nullptr) ? RVTransportAttachAuto(found->First() != nullptr ? carrier : carrier, found, false) : false;
 		IConsolePrint(attached ? CC_DEFAULT : CC_ERROR, "sim: scan found={} attached={} carrying={} (carrier order rvflags={} declared dest of rv={})",
 				found != nullptr, attached, RVTransportCountOnCarrier(carrier), rvf, RVTransportGetDeclaredDestination(rv).base());
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "release")) {
+		/* Emergency release of a carried road vehicle (same code path used when a carrier is destroyed). */
+		if (argv.size() != 3) return false;
+		Vehicle *rv = get_veh(argv[2]);
+		if (rv == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		RVTransportForceRelease(rv);
+		IConsolePrint(CC_DEFAULT, "release: vehicle #{} flags={} hidden={} tile={}",
+				rv->index.base(), rv->rv_transport_flags, rv->vehstatus.Test(VehState::Hidden), rv->tile.base());
 		return true;
 	}
 

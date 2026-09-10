@@ -122,6 +122,7 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 	extern void UpdateVehicleTileHash(Vehicle *v, bool remove);
 
 	if (carrier == nullptr || part == nullptr || rv == nullptr) return false;
+	if (carrier->type == VehicleType::Road) return false; // carriers are trains/ships/aircraft, not road vehicles
 	if (rv->type != VehicleType::Road) return false;
 	if (!rv->IsFrontEngine()) return false;              // articulated road vehicles: later stage
 	if (rv->Next() != nullptr) return false;             // do not carry multi-part road vehicles (yet)
