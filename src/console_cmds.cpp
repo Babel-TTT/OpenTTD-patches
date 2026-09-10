@@ -4453,12 +4453,34 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 
 	if (argv.size() < 2) {
 		IConsolePrint(CC_HELP, "Road vehicle transport (RoRo) debug command. Usage:");
-		IConsolePrint(CC_HELP, "  rvtransport state <vehicle_id>");
+		IConsolePrint(CC_HELP, "  rvtransport list");
 		IConsolePrint(CC_HELP, "  rvtransport wait <vehicle_id> on|off");
 		IConsolePrint(CC_HELP, "  rvtransport orderflag <vehicle_id> load|unload");
 		IConsolePrint(CC_HELP, "  rvtransport attach <carrier_id> <rv_id> [force]");
 		IConsolePrint(CC_HELP, "  rvtransport detach <carrier_id> <station_id>");
 		IConsolePrint(CC_HELP, "  rvtransport selftest");
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "list")) {
+		IConsolePrint(CC_DEFAULT, "road vehicles (up to 12):");
+		int n = 0;
+		for (Vehicle *v : Vehicle::Iterate()) {
+			if (v->type != VehicleType::Road || !v->IsFrontEngine()) continue;
+			IConsolePrint(CC_DEFAULT, "  rv #{} tile=0x{:X} flags={} stopped={} hidden={} on_board={}",
+					v->index.base(), v->tile.base(), v->rv_transport_flags,
+					v->vehstatus.Test(VehState::Stopped), v->vehstatus.Test(VehState::Hidden), RVTransportCountOnCarrier(v));
+			if (++n >= 12) break;
+		}
+		IConsolePrint(CC_DEFAULT, "carriers (up to 12 trains/ships/aircraft):");
+		n = 0;
+		for (Vehicle *v : Vehicle::Iterate()) {
+			if (v->type != VehicleType::Train && v->type != VehicleType::Ship && v->type != VehicleType::Aircraft) continue;
+			if (!v->IsPrimaryVehicle()) continue;
+			IConsolePrint(CC_DEFAULT, "  #{} type={} tile=0x{:X} carrying={}",
+					v->index.base(), (int)v->type, v->tile.base(), RVTransportCountOnCarrier(v));
+			if (++n >= 12) break;
+		}
 		return true;
 	}
 
