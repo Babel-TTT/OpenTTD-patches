@@ -146,6 +146,12 @@ NamedSaveLoadTable GetOrderExtraInfoDescription()
 		NSL("colour",           SLE_CONDVAR_X(OrderExtraInfo, colour,           SLE_UINT8,            SL_MIN_VERSION, SL_MAX_VERSION, SlXvFeatureTest(XSLFTO_AND, XSLFI_ORDER_EXTRA_DATA, 2))),
 		NSL("rv_transport_flags", SLE_CONDVAR_X(OrderExtraInfo, rv_transport_flags, SLE_UINT8,       SL_MIN_VERSION, SL_MAX_VERSION, SlXvFeatureTest(XSLFTO_AND, XSLFI_ROAD_VEH_TRANSPORT))),
 		NSL("rv_transport_max", SLE_CONDVAR_X(OrderExtraInfo, rv_transport_max, SLE_UINT8,           SL_MIN_VERSION, SL_MAX_VERSION, SlXvFeatureTest(XSLFTO_AND, XSLFI_ROAD_VEH_TRANSPORT))),
+		/* Selection criteria, added with feature version 2 (older saves simply have no criteria). */
+		NSL("rv_transport_load_state", SLE_CONDVAR_X(OrderExtraInfo, rv_transport_load_state, SLE_UINT8, SL_MIN_VERSION, SL_MAX_VERSION, SlXvFeatureTest(XSLFTO_AND, XSLFI_ROAD_VEH_TRANSPORT, 2))),
+		NSL("rv_transport_cargo_mode", SLE_CONDVAR_X(OrderExtraInfo, rv_transport_cargo_mode, SLE_UINT8, SL_MIN_VERSION, SL_MAX_VERSION, SlXvFeatureTest(XSLFTO_AND, XSLFI_ROAD_VEH_TRANSPORT, 2))),
+		NSL("rv_transport_cargo", SLE_CONDVAR_X(OrderExtraInfo, rv_transport_cargo, SLE_UINT8,       SL_MIN_VERSION, SL_MAX_VERSION, SlXvFeatureTest(XSLFTO_AND, XSLFI_ROAD_VEH_TRANSPORT, 2))),
+		NSL("rv_transport_min_wait", SLE_CONDVAR_X(OrderExtraInfo, rv_transport_min_wait, SLE_UINT16, SL_MIN_VERSION, SL_MAX_VERSION, SlXvFeatureTest(XSLFTO_AND, XSLFI_ROAD_VEH_TRANSPORT, 2))),
+		NSL("rv_transport_dest_station", SLE_CONDVAR_X(OrderExtraInfo, rv_transport_dest_station, SLE_UINT16, SL_MIN_VERSION, SL_MAX_VERSION, SlXvFeatureTest(XSLFTO_AND, XSLFI_ROAD_VEH_TRANSPORT, 2))),
 	};
 
 	return _order_extra_info_desc;

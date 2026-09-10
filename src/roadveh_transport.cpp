@@ -159,6 +159,39 @@ uint8_t RVTransportToggleOrderFlag(uint8_t flags, uint8_t bit, bool is_road_vehi
 }
 
 /**
+ * A road vehicle which is loaded onto a carrier leaves the road stop it was waiting in.
+ * A parking bay is just a flag, but a drive-through stop caches how much of its entry is occupied;
+ * that cache can be out of step with reality (it is rebuilt from the vehicles on the tiles, and a
+ * parked vehicle whose facing does not match the entry it used is not attributed to either entry),
+ * so the subtraction used by RoadStop::Leave() cannot be used there. The occupancy is recomputed
+ * instead, from the vehicles which are really on the stop - this must happen after the road vehicle
+ * has been taken off the road network, so that it is not counted any more.
+ */
+static void RVTransportReleaseRoadStop(Vehicle *rv)
+{
+	if (rv == nullptr || !IsAnyRoadStopTile(rv->tile)) return;
+
+	const RoadStopType rst = GetRoadStopType(rv->tile);
+
+	if (IsBayRoadStopTile(rv->tile)) {
+		/* Bay stop: free the bay flag (the bay number is stored in the vehicle state). */
+		RoadStop *rs = RoadStop::GetByTile(rv->tile, rst);
+		if (rs != nullptr) rs->Leave(RoadVehicle::From(rv));
+		return;
+	}
+
+	/* Drive-through stop: find the base stop of this chain and rebuild its entry caches. */
+	const TileIndexDiff offset = TileOffsByAxis(GetDriveThroughStopAxis(rv->tile));
+	TileIndex base_tile = rv->tile;
+	for (TileIndex t = base_tile - offset; RoadStop::IsDriveThroughRoadStopContinuation(base_tile, t); t -= offset) base_tile = t;
+
+	RoadStop *base = RoadStop::GetByTile(base_tile, rst);
+	if (base == nullptr || !base->status.Test(RoadStop::RoadStopStatusFlag::BaseEntry)) return;
+	base->GetEntry(DiagDirection::NE).Rebuild(base);
+	base->GetEntry(DiagDirection::NW).Rebuild(base);
+}
+
+/**
  * Load one road vehicle onto a carrier part: the road vehicle leaves the road network
  * and is remembered by the carrier (single tick commit, no intermediate state).
  * @param force skip the cargo class / capacity checks (used by the debug self test).
@@ -184,13 +217,10 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 		if (used + weight > capacity) return false;      // refused: no room on this part
 	}
 
-	/* The road vehicle leaves the road stop it was loaded at: it is off the map now and must not
-	 * keep a parking bay allocated (nor look like it is parked in a stop, so that destroying it
-	 * while it is carried cannot release the same bay a second time). */
-	if (IsAnyRoadStopTile(rv->tile)) {
-		RoadStop *rs = RoadStop::GetByTile(rv->tile, GetRoadStopType(rv->tile));
-		if (rs != nullptr) rs->Leave(RoadVehicle::From(rv));
-	}
+	/* The road vehicle leaves the road stop it was loaded at: free a parking bay while the vehicle
+	 * state still holds the bay number (a drive-through stop is handled after the road network
+	 * removal below, when the vehicle is no longer part of the stop's occupancy). */
+	if (IsBayRoadStopTile(rv->tile)) RVTransportReleaseRoadStop(rv);
 
 	/* Hide the whole road vehicle: every part of an articulated vehicle is drawn and hashed on its
 	 * own, and in a bend the parts are not even on the same tile. */
@@ -209,6 +239,10 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 		UpdateVehicleTileHash(u, true);   // off the road network (like virtual vehicles)
 		u->UpdateIsDrawn();
 	}
+
+	/* Drive-through stop: the vehicle is off the road network now, so the cached occupancy of the
+	 * stop is recomputed without it. */
+	if (!IsBayRoadStopTile(rv->tile)) RVTransportReleaseRoadStop(rv);
 
 	carrier->MarkDirty();              // refresh carrier weight; must be the front (CargoChanged asserts this->First() == this)
 	return true;
@@ -328,26 +362,106 @@ StationID RVTransportGetNextCarrierStop(const Vehicle *carrier)
 	return StationID::Invalid();
 }
 
+/** Total cargo of a (possibly articulated) road vehicle. */
+static uint32_t RVTransportCandidateCargoCount(const Vehicle *rv)
+{
+	uint32_t count = 0;
+	for (const Vehicle *u = rv; u != nullptr; u = u->Next()) count += u->cargo.StoredCount();
+	return count;
+}
+
+/** Total cargo capacity of a (possibly articulated) road vehicle. */
+static uint32_t RVTransportCandidateCargoCapacity(const Vehicle *rv)
+{
+	uint32_t cap = 0;
+	for (const Vehicle *u = rv; u != nullptr; u = u->Next()) cap += u->cargo_cap;
+	return cap;
+}
+
+/** Does this station order select road vehicles by any criterion? */
+bool RVTransportOrderHasCriteria(const Order &order)
+{
+	if ((order.GetRVTransportFlags() & ORVTF_MATCH_DEST) != 0) return true;
+	if (order.GetRVTransportLoadState() != RVTLS_ANY) return true;
+	if (order.GetRVTransportCargoMode() != RVTC_ANY) return true;
+	if (order.GetRVTransportMinWait() != 0) return true;
+	if (order.GetRVTransportDestStation() != 0) return true;
+	return false;
+}
+
 /**
- * First road vehicle waiting to be transported at this station.
- * @param st Station to look at.
- * @param carrier Carrier which wants to load; used for the destination match.
- * @param match_destination When true only road vehicles whose declared unload station equals
- *        the carrier's next stop are considered; other waiting vehicles are skipped.
+ * Would this station order take the given road vehicle as a candidate? Every criterion which is in
+ * use must be satisfied; a road vehicle which does not match is skipped (it keeps waiting for
+ * another carrier), exactly like the destination match works on its own.
  */
-Vehicle *RVTransportFindWaitingAtStation(const Station *st, const Vehicle *carrier, bool match_destination)
+bool RVTransportOrderAllowsCandidate(const Vehicle *carrier, const Vehicle *rv)
+{
+	if (carrier == nullptr || rv == nullptr) return false;
+	const Order &order = carrier->current_order;
+
+	/* Declared destination: a specific station, otherwise the carrier's next stop. */
+	const uint16_t wanted_station = order.GetRVTransportDestStation();
+	if (wanted_station != 0) {
+		if (RVTransportGetDeclaredDestination(rv) != StationID(wanted_station - 1)) return false;
+	} else if ((order.GetRVTransportFlags() & ORVTF_MATCH_DEST) != 0) {
+		if (RVTransportGetDeclaredDestination(rv) != RVTransportGetNextCarrierStop(carrier)) return false;
+	}
+
+	/* Load state of the candidate. */
+	switch (order.GetRVTransportLoadState()) {
+		case RVTLS_EMPTY:
+			if (RVTransportCandidateCargoCount(rv) != 0) return false;
+			break;
+
+		case RVTLS_FULL: {
+			const uint32_t capacity = RVTransportCandidateCargoCapacity(rv);
+			if (capacity == 0 || RVTransportCandidateCargoCount(rv) != capacity) return false;
+			break;
+		}
+
+		default:
+			break;
+	}
+
+	/* Cargo criterion. */
+	const uint8_t cargo_mode = order.GetRVTransportCargoMode();
+	if (cargo_mode != RVTC_ANY) {
+		const CargoType cargo = static_cast<CargoType>(order.GetRVTransportCargo());
+		if (!IsValidCargoType(cargo)) return false;
+
+		bool ok = false;
+		for (const Vehicle *u = rv; u != nullptr && !ok; u = u->Next()) {
+			if (u->cargo_type != cargo) continue;
+			ok = (cargo_mode == RVTC_CAN_CARRY) ? (u->cargo_cap > 0) : (u->cargo.StoredCount() > 0);
+		}
+		if (!ok) return false;
+	}
+
+	/* Minimum waiting time. */
+	const uint16_t min_wait_days = order.GetRVTransportMinWait();
+	if (min_wait_days != 0) {
+		if (rv->transport_wait_tick == 0) return false;
+		if (_tick_counter - rv->transport_wait_tick < static_cast<uint32_t>(min_wait_days) * DAY_TICKS) return false;
+	}
+
+	return true;
+}
+
+/**
+ * First road vehicle waiting to be transported at this station which satisfies the selection
+ * criteria of the carrier's current order.
+ * @param st Station to look at.
+ * @param carrier Carrier which wants to load; when given, its order criteria are applied.
+ */
+Vehicle *RVTransportFindWaitingAtStation(const Station *st, const Vehicle *carrier)
 {
 	if (st == nullptr) return nullptr;
-	const StationID next_stop = match_destination ? RVTransportGetNextCarrierStop(carrier) : StationID::Invalid();
 	for (Vehicle *v : Vehicle::Iterate()) {
 		if ((v->rv_transport_flags & RVTF_WAITING) == 0) continue;
 		if (v->type != VehicleType::Road) continue;
 		if (!v->IsFrontEngine()) continue;
 		if (v->last_station_visited != st->index) continue;
-		if (match_destination) {
-			const StationID dest = RVTransportGetDeclaredDestination(v);
-			if (dest != next_stop) continue; // not for this carrier's next stop: skip it
-		}
+		if (carrier != nullptr && !RVTransportOrderAllowsCandidate(carrier, v)) continue; // does not match: skip it
 		return v;
 	}
 	return nullptr;

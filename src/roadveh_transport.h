@@ -27,6 +27,33 @@ static const uint8_t ORVTF_UNLOAD = 1 << 1; ///< This station order unloads road
 static const uint8_t ORVTF_MATCH_DEST = 1 << 2; ///< Only load road vehicles whose declared unload station equals the carrier's next stop.
 static const uint8_t ORVTF_WAIT = 1 << 3;       ///< Keep waiting at this station until road vehicles have been loaded.
 
+/**
+ * Selection criteria of a carrier's "load road vehicles" order: the loader only takes road vehicles
+ * which satisfy every criterion which is in use ("no match, skip this vehicle"), in the same spirit
+ * as the coupling parameters of the px-patch train coupling feature.
+ */
+enum RVTransportLoadState : uint8_t {
+	RVTLS_ANY   = 0, ///< Any road vehicle.
+	RVTLS_EMPTY = 1, ///< Only an empty road vehicle.
+	RVTLS_FULL  = 2, ///< Only a fully loaded road vehicle.
+};
+
+/** Cargo criterion of a carrier's "load road vehicles" order. */
+enum RVTransportCargoMode : uint8_t {
+	RVTC_ANY        = 0, ///< Any cargo.
+	RVTC_CAN_CARRY  = 1, ///< The road vehicle must be able to carry the given cargo.
+	RVTC_IS_CARRYING = 2, ///< The road vehicle must currently carry the given cargo.
+};
+
+/** Does this station order select road vehicles by any criterion? */
+bool RVTransportOrderHasCriteria(const class Order &order);
+
+/**
+ * Would this station order take the given road vehicle as a candidate? Applies the destination
+ * match, the load state, the cargo and the minimum waiting time criteria of the order.
+ */
+bool RVTransportOrderAllowsCandidate(const Vehicle *carrier, const Vehicle *rv);
+
 /** Station a road vehicle wants to be unloaded at (from its own "unload road vehicles" order), or invalid. */
 StationID RVTransportGetDeclaredDestination(const Vehicle *rv);
 
@@ -69,12 +96,12 @@ bool RVTransportAttachAuto(Vehicle *carrier, Vehicle *rv, bool force = false);
 bool RVTransportDetachAtStation(Vehicle *carrier, Station *st);
 
 /**
- * Find the first road vehicle waiting to be transported at this station.
+ * Find the first road vehicle waiting to be transported at this station which satisfies the
+ * selection criteria of the carrier's current order (see RVTransportOrderAllowsCandidate()).
  * @param st Station to look at.
- * @param carrier Carrier which wants to load; used for the destination match.
- * @param match_destination When true, only vehicles whose declared unload station equals the carrier's next stop are considered.
+ * @param carrier Carrier which wants to load; when given, its order criteria are applied.
  */
-Vehicle *RVTransportFindWaitingAtStation(const Station *st, const Vehicle *carrier = nullptr, bool match_destination = false);
+Vehicle *RVTransportFindWaitingAtStation(const Station *st, const Vehicle *carrier = nullptr);
 
 /** Number of road vehicles currently carried by this carrier (front vehicle). */
 uint32_t RVTransportCountOnCarrier(const Vehicle *carrier);

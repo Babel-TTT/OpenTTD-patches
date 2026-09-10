@@ -9,8 +9,8 @@ own schedule.
 * **Base**: JGRPP **0.73.1**, commit `611aabd7ba` (this is *not* upstream OpenTTD trunk)
 * **Status**: playable and verified in game (waiting, loading, transport, unloading and release
   all work); the remaining work is listed under *Known limitations*
-* **Diff vs. base**: `src/` — 31 files, +977/−28 · `docs/ro-ro/` — 4 files (+1047) ·
-  `testrun/` — 11 scripts (+586). See `git diff --stat 611aabd7ba..HEAD`
+* **Diff vs. base**: `src/` — 34 files, +1336/−36 · `docs/ro-ro/` — 4 files (+1187) ·
+  `testrun/` — 14 scripts (+821). See `git diff --stat 611aabd7ba..HEAD`
 
 ## How it works from the player's point of view
 
@@ -41,6 +41,25 @@ A typical setup:
 
 * truck: `Go to A` + *wait to be transported* → `Go to B` + *be unloaded here* → `Go to C`
 * train: `Go to A` + *load road vehicles* → `Go to B` + *unload road vehicles*
+
+### Selection criteria
+
+A "load road vehicles" order can also **select which** road vehicles it takes: a candidate which
+does not satisfy every criterion that is in use is simply skipped and keeps waiting for another
+carrier (the same "no match, skip it" semantics as the destination match). This follows the
+parameterised style of the px-patch train coupling feature (whose `CoupleOrderLoadOk()` /
+`CoupleCargoOk()` / `CoupleNumOk()` pick the partner train by order parameters):
+
+| Criterion | Values | Meaning |
+|---|---|---|
+| load state | any / empty / full | only take an empty (or a fully loaded) road vehicle |
+| cargo | any / can carry X / is carrying X | only take a vehicle which can carry, or currently carries, cargo X |
+| minimum waiting time | 0 = no limit / N days | only take a vehicle which has been waiting for at least N days |
+| declared destination | any / next stop / a specific station | "next stop" is what the *Only road vehicles for the next stop* entry has always done |
+
+The criteria are stored per station order (5 extra fields in `OrderExtraInfo`, behind extended
+savegame feature version 2, so older saves simply have no criteria). They can currently be set from
+the game console (`rvtransport criteria …`); the order window entries for them are still to come.
 
 The order row lists **every** part of the setting that is active (e.g. "Go to A, load road vehicles,
 only road vehicles for the next stop"), and a waiting/carried road vehicle shows the status
@@ -121,6 +140,10 @@ rvtransport orderflag <vehicle> load|unload|dest|wait    # set flags on the curr
 rvtransport modify <vehicle> <order> load|unload|dest|wait   # set the flags through the real order command
 rvtransport toggle <vehicle> <order> load|unload|dest|wait   # apply the order window's check box rules
 rvtransport setflags <vehicle> <order> <flags>      # force an order into a known flag state
+rvtransport criteria <vehicle> <order> loadstate any|empty|full
+rvtransport criteria <vehicle> <order> cargo any|<cargo_id> [carrying]
+rvtransport criteria <vehicle> <order> minwait <days>
+rvtransport criteria <vehicle> <order> dest any|<station_id>
 rvtransport attach|detach <carrier> <rv|station> [force]  # run the load/unload transactions directly
 rvtransport release <rv>                            # emergency release (same function as carrier destruction)
 rvtransport sim <carrier> <rv>                      # simulate waiting -> scan -> load on a real map
@@ -145,6 +168,8 @@ config in `build/roro-test.cfg` and a savegame in `build/save/`; adapt the paths
 | `verify_sim.ps1` | waiting → station scan → load chain on a real map | PASS |
 | `verify_user_save.ps1` | order command chain (`load`/`unload`/`dest`) | PASS |
 | `verify_toggle.ps1` | the order window's flag toggling rules (via `rvtransport toggle`, which calls the same `RVTransportToggleOrderFlag()`) | PASS |
+| `verify_filter.ps1` | the selection criteria (7 cases: no criteria, cargo match/mismatch, empty, minimum waiting time too long/off, declared destination) | PASS |
+| `verify_destroy.ps1` | destroying a carrier also destroys the road vehicles it carried | PASS |
 | `verify_release.ps1` | the manual release path (`RVTransportForceRelease`, now a debug/safety net) | PASS |
 | `run_selftest.ps1`, `m1_roundtrip.ps1`, `probe_ai.ps1` | early scaffolding / diagnostics, superseded | disabled |
 
@@ -163,8 +188,12 @@ path is exercised through `rvtransport release` (the same `RVTransportForceRelea
 
 Work that is deliberately **not** in this branch yet:
 
-* **Articulated (multi-part) road vehicles cannot be loaded** (single-unit road vehicles only; the
-  attach transaction refuses a road vehicle that is not a front engine or that has a next part).
+* **No order window entries for the selection criteria** (they are console-only for now:
+  `rvtransport criteria …`).
+* **Articulated (multi-part) road vehicles are handled by the transport code**, but the end-to-end
+  verification still needs a savegame whose NewGRF vehicle set provides articulated road vehicles
+  (the default game content has none). Note that the engine itself does not let articulated road
+  vehicles enter bay-type road stops, so they can only wait at drive-through stops.
 * **No "carried vehicles" list in the vehicle detail window** — a carrier's status line shows how
   many road vehicles it holds, but the individual vehicles can only be inspected through
   `rvtransport list`/`state` for now.

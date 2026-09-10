@@ -152,3 +152,28 @@ rvtransport modify <车辆ID> <订单序号> load|unload|dest|wait     # 走与 
    - 载体被毁时整挂一起消失；`rvtransport state <铰接车ID>` 会逐节打印 `part N: ... hidden=... state=...`，可以确认每一节都被正确隐藏/恢复。
 
 > 若你手头没有方便测试的存档：开一局加载 `chinasetbuses.grf`，买一辆铰接公交并保存到 `build\save\`，我就能把它接进自动化脚本（`verify_articulated.ps1`）逐项断言。
+
+## 9. 条件选择运载（筛选条件）的手测步骤
+
+一条"装载道路载具"的订单可以带**筛选条件**，只有**全部满足**的等待车辆才会被装走，不满足的继续等下一班（语义与"只装载去下一站的道路载具"一致，只是判据变多了）。参考 px-patch"连接车辆"的参数化风格：
+
+| 条件 | 取值 | 含义 |
+|---|---|---|
+| 载货状态 | 任意 / 空车 / 满载 | 只装空车，或只装满载的车 |
+| 货物 | 任意 / 能载某货 / 正载某货 | 只装能载（或正在载）指定货物的车 |
+| 最短等待 | 0 = 不限 / N 天 | 只装已经等了 N 天以上的车（避免反复插队） |
+| 声明目的地 | 任意 / 下一站 / 指定车站 | 现在的"只装去下一站的车"就是它的一个预设 |
+
+**控制台操作**（GUI 入口见下一段说明）：
+
+```
+rvtransport criteria <载体ID> <订单序号> loadstate any|empty|full
+rvtransport criteria <载体ID> <订单序号> cargo any|<货物ID> [carrying]
+rvtransport criteria <载体ID> <订单序号> minwait <天数>
+rvtransport criteria <载体ID> <订单序号> dest any|<车站ID>
+rvtransport sim <载体ID> <道路载具ID>      # 等价于"让这辆车在站里等着 → 按条件扫描 → 装车"
+```
+
+`sim` 输出的 `scan found=true/false` 直接告诉你条件是否接受了这辆候选车，`criteria=` 会显示该订单当前是否带了条件。
+
+**手测要点**：设一条明显不匹配的条件（例如 `loadstate empty`，而你的卡车正载着货；或 `minwait 100`），然后让火车来装车——期望**装不上**（卡车继续等待）；把条件改回 `any` 后应当能装。全程无断言/崩溃。

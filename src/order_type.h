@@ -298,6 +298,10 @@ enum ModifyOrderFlags : uint8_t {
 	MOF_LABEL_TEXT,      ///< Change the label text value
 	MOF_DEPARTURES_SUBTYPE, ///< Change the label departures subtype
 	MOF_RV_TRANSPORT,    ///< Passes road vehicle transport (RoRo) load/unload flags for a station order.
+	MOF_RV_LOAD_STATE,   ///< Road vehicle transport (RoRo) selection criterion: load state of a candidate.
+	MOF_RV_CARGO_MODE,   ///< Road vehicle transport (RoRo) selection criterion: cargo mode of a candidate (CargoType is passed along).
+	MOF_RV_MIN_WAIT,     ///< Road vehicle transport (RoRo) selection criterion: minimum waiting time of a candidate.
+	MOF_RV_DEST_STATION, ///< Road vehicle transport (RoRo) selection criterion: declared destination of a candidate.
 	MOF_END
 };
 

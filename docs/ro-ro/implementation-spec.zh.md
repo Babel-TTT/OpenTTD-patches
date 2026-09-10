@@ -335,7 +335,15 @@ rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（�
 - ✅ **人工验收**：玩家实测确认"卡车自动等待 → 被装载 → 被卸下 → 继续执行调度"全流程正常。
 - ✅ **M8（部分）**：**收运中存档往返 PASS**（状态/宿主/节号/重量完整保留，读档后仍可落地）；**旧档兼容重跑 PASS**；自读自档 PASS；链路仿真、强制装卸、订单命令链、勾选规则、释放路径全部 PASS（脚本清单见 D.3）。
 - 🔧 关键修复（都是实测暴露后定位）：`Order::AssignOrder()` 拷贝时丢弃 RoRo 旗标（车辆读到的是丢失后的当前订单）；装载时对非车头调用 `MarkDirty()` 触发 `CargoChanged()` 断言；订单类型白名单未允许新字段；订单行/按钮文案被匹配位抢占；卡车订单被误置匹配位。
-- ⏳ **待办**：铰接车实机走查（需含铰接车的 NewGRF，见 M9）；**条件选择运载**（照 px-patch"连接车辆"的参数化筛选风格：候选载货状态/可载货物/车组/等待时长/声明目的地，3–4 轮）；车辆详情窗口里的"载运清单"；船/机载体实机走查（手测步骤见 `manual-test-guide.zh.md` 第 6 节）；载体事故销毁路径实机走查；**等待中的卡车仍占着停靠点 bay**（是否让等待时也释放 bay 待定）；联机 sync test；性能验收；合并前剥离 `rvtransport` 调试命令。
+- ✅ **M10：条件选择运载（参数化筛选）**：一条"装载道路载具"的订单现在可以带**筛选条件**，只有**全部满足**的等待车辆才会被装走，不满足的继续留在站里等下一班（语义与"只装载去下一站的道路载具"一致，只是判据变多）。参照 px-patch"连接车辆"的参数化风格（它是"新订单类型 + 每参数一个 MOF"，见 `train_cmd.cpp` 的 `CoupleOrderLoadOk/CoupleCargoOk/CoupleNumOk`）：
+  - **判据**：候选载货状态（任意/空车/满载）、货物（任意/能载 X/正载 X）、最短等待天数、声明目的地（任意/下一站/指定车站，其中"下一站"就是原来那个勾选项）。
+  - **数据**：`OrderExtraInfo` 增 5 个字段（`rv_transport_load_state`、`rv_transport_cargo_mode`、`rv_transport_cargo`、`rv_transport_min_wait`、`rv_transport_dest_station`），XSLF 特性 `XSLFI_ROAD_VEH_TRANSPORT` 版本 **1→2**，新字段按版本 ≥2 门控（旧档自动取默认=无条件）。
+  - **命令**：`MOF_RV_LOAD_STATE` / `MOF_RV_CARGO_MODE`（货物经 `cargo_id` 传入）/ `MOF_RV_MIN_WAIT` / `MOF_RV_DEST_STATION`，均限车站订单；`Order::AssignOrder()` 的 extra 拷贝条件同步扩展。
+  - **求值**：`RVTransportOrderAllowsCandidate(carrier, rv)`（roadveh_transport.cpp）逐条判定；装货循环与 `ORVTF_WAIT` 等待判定统一改用它（原来只判目的地）。
+  - **调试**：`rvtransport criteria <车辆> <订单> loadstate|cargo|minwait|dest …`；`rvtransport state` 现在打印每节的 `cargo: type/cap/stored/group`；`sim` 输出追加 `criteria=`。
+  - **验证**：新增 `testrun/verify_filter.ps1` → **PASS**（7 个用例：无条件=装、货物=自有货物=装、货物=其它=**跳过**、空车条件符合=装、最短等待 100 天=**跳过**、等待 0=装、指定声明目的地=装）。
+  - 🔧 顺带修掉一个**真崩溃**（本轮实测暴露）：装载时对**直通式**停靠站直接调用 `RoadStop::Leave()` 做占用减法会触发 `roadstop.cpp:377` 断言（该站点的占用缓存可能并未把这辆车算进该入口，例如车辆停放朝向与入口不匹配时重建的结果）。现改为：先把车辆（含各铰接节）移出路网哈希，再按引擎读档时的做法**重建**该站点链基站的入口占用（`GetEntry(NE/NW).Rebuild(base)`）；停车位（bay）仍按标志释放（在状态里还带着 bay 号时调用 `Leave`）。
+- ⏳ **待办**：筛选条件的**订单窗口 GUI**（目前只能靠控制台 `rvtransport criteria` 设置；计划按 px-patch 的交互做成订单面板上的几个下拉）；铰接车实机走查（需含铰接车的 NewGRF，见 M9）；车辆详情窗口里的"载运清单"；船/机载体实机走查（手测步骤见 `manual-test-guide.zh.md` 第 6 节）；载体事故销毁路径实机走查；**等待中的卡车仍占着停靠点 bay**（是否让等待时也释放 bay 待定）；联机 sync test；性能验收；合并前剥离 `rvtransport` 调试命令。
 
 ---
 

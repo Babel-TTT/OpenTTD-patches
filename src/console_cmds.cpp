@@ -4446,6 +4446,25 @@ static bool ConDumpInfo(std::span<std::string_view> argv)
 /**
  * Debug and self-test command for the road vehicle transport (RoRo) feature.
  */
+/**
+ * RoRo debug helper: copy the road vehicle transport fields of an order list entry into the
+ * vehicle's current order. The loading loop reads the current order copy and a paused vehicle does
+ * not re-read its order list, so the debug commands have to keep the two in sync; they are debug
+ * commands, so this is done unconditionally.
+ */
+static void RVTransportDebugSyncCurrentOrder(Vehicle *v, VehicleOrderID order_index)
+{
+	if (v == nullptr) return;
+	const Order *o = v->GetOrder(order_index);
+	if (o == nullptr) return;
+	v->current_order.GetRVTransportFlagsRef() = o->GetRVTransportFlags();
+	v->current_order.GetRVTransportLoadStateRef() = o->GetRVTransportLoadState();
+	v->current_order.GetRVTransportCargoModeRef() = o->GetRVTransportCargoMode();
+	v->current_order.GetRVTransportCargoRef() = o->GetRVTransportCargo();
+	v->current_order.GetRVTransportMinWaitRef() = o->GetRVTransportMinWait();
+	v->current_order.GetRVTransportDestStationRef() = o->GetRVTransportDestStation();
+}
+
 static bool ConRVTransport(std::span<std::string_view> argv)
 {
 	auto get_veh = [](std::string_view s) -> Vehicle * {
@@ -4475,6 +4494,10 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		IConsolePrint(CC_HELP, "  rvtransport toggle <vehicle_id> <order_nr> load|unload|dest|wait");
 		IConsolePrint(CC_HELP, "  rvtransport setflags <vehicle_id> <order_nr> <flags>");
 		IConsolePrint(CC_HELP, "  rvtransport destroy <vehicle_id>");
+		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> loadstate any|empty|full");
+		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> cargo any|<cargo_id> [carrying]");
+		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> minwait <days>");
+		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> dest any|<station_id>");
 		IConsolePrint(CC_HELP, "  rvtransport release <rv_id>");
 		IConsolePrint(CC_HELP, "  rvtransport detach <carrier_id> <station_id>");
 		IConsolePrint(CC_HELP, "  rvtransport selftest");
@@ -4519,6 +4542,8 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 						parts, u->index.base(), u->rv_transport_flags, u->tile.base(),
 						u->vehstatus.Test(VehState::Hidden), u->vehstatus.Test(VehState::Stopped),
 						(int)RoadVehicle::From(u)->state, u->IsArticulatedPart());
+				IConsolePrint(CC_DEFAULT, "    cargo: type={} cap={} stored={} group={}",
+						(int)u->cargo_type, u->cargo_cap, u->cargo.StoredCount(), u->group_id.base());
 				parts++;
 			}
 			IConsolePrint(CC_DEFAULT, "  weights: unladen={}t on_board={} parts={}", RVTransportGetVehicleWeightTonnes(v), RVTransportCountOnCarrier(v), parts);
@@ -4610,6 +4635,7 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		_current_company = old_current_company;
 		_local_company = old_local_company;
 		const bool ok = res.Succeeded();
+		if (ok) RVTransportDebugSyncCurrentOrder(v, order_index);
 		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "toggle: {} (vehicle #{} type={} order {} flags {} -> {}), error: {}",
 				ok ? "OK" : "FAILED", v->index.base(), (int)v->type, order_index, old_flags, nflags,
 				res.GetErrorMessage() != INVALID_STRING_ID ? GetString(res.GetErrorMessage()) : std::string("<none>"));
@@ -4634,6 +4660,7 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		_current_company = old_current_company;
 		_local_company = old_local_company;
 		const bool ok = res.Succeeded();
+		if (ok) RVTransportDebugSyncCurrentOrder(v, order_index);
 		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "setflags: {} (vehicle #{} order {} -> {}), error: {}",
 				ok ? "OK" : "FAILED", v->index.base(), order_index, nflags,
 				res.GetErrorMessage() != INVALID_STRING_ID ? GetString(res.GetErrorMessage()) : std::string("<none>"));
@@ -4692,10 +4719,77 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 				rv->index.base(), st->index.base(), rv->rv_transport_flags, rv->vehstatus.Test(VehState::Stopped));
 
 		const uint8_t rvf = carrier->current_order.GetRVTransportFlags();
-		Vehicle *found = RVTransportFindWaitingAtStation(st, carrier, (rvf & ORVTF_MATCH_DEST) != 0);
-		const bool attached = (found != nullptr) ? RVTransportAttachAuto(found->First() != nullptr ? carrier : carrier, found, false) : false;
-		IConsolePrint(attached ? CC_DEFAULT : CC_ERROR, "sim: scan found={} attached={} carrying={} (carrier order rvflags={} declared dest of rv={})",
-				found != nullptr, attached, RVTransportCountOnCarrier(carrier), rvf, RVTransportGetDeclaredDestination(rv).base());
+		Vehicle *found = RVTransportFindWaitingAtStation(st, carrier); // applies the order's selection criteria
+		const bool attached = (found != nullptr) ? RVTransportAttachAuto(carrier, found, false) : false;
+		IConsolePrint(attached ? CC_DEFAULT : CC_ERROR, "sim: scan found={} attached={} carrying={} (carrier order rvflags={} declared dest of rv={} criteria={})",
+				found != nullptr, attached, RVTransportCountOnCarrier(carrier), rvf, RVTransportGetDeclaredDestination(rv).base(),
+				RVTransportOrderHasCriteria(carrier->current_order));
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "criteria")) {
+		/* Set one selection criterion of a station order, in the same way the order window does (the
+		 * debug command exists so that the criteria can be exercised on a dedicated server). */
+		if (argv.size() < 6) return false;
+		Vehicle *v = get_veh(argv[2]);
+		if (v == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		const VehicleOrderID order_index = ParseType<VehicleOrderID>(argv[3]).value_or(INVALID_VEH_ORDER_ID);
+		if (order_index == INVALID_VEH_ORDER_ID) { IConsolePrint(CC_ERROR, "invalid order index"); return true; }
+		const Order *o = v->GetOrder(order_index);
+		if (o == nullptr) { IConsolePrint(CC_ERROR, "order {} not found (vehicle has {} orders)", order_index, v->GetNumOrders()); return true; }
+
+		ModifyOrderFlags mof = MOF_END;
+		uint16_t data = 0;
+		CargoType cargo = INVALID_CARGO;
+		const std::string_view key = argv[4];
+		const std::string_view value = argv[5];
+
+		if (StrEqualsIgnoreCase(key, "loadstate")) {
+			mof = MOF_RV_LOAD_STATE;
+			if (StrEqualsIgnoreCase(value, "any")) data = RVTLS_ANY;
+			else if (StrEqualsIgnoreCase(value, "empty")) data = RVTLS_EMPTY;
+			else if (StrEqualsIgnoreCase(value, "full")) data = RVTLS_FULL;
+			else { IConsolePrint(CC_ERROR, "loadstate must be 'any', 'empty' or 'full'"); return true; }
+		} else if (StrEqualsIgnoreCase(key, "cargo")) {
+			mof = MOF_RV_CARGO_MODE;
+			if (StrEqualsIgnoreCase(value, "any") || StrEqualsIgnoreCase(value, "none")) {
+				data = RVTC_ANY;
+			} else {
+				const CargoType c = static_cast<CargoType>(ParseType<uint8_t>(value).value_or(0xFF));
+				if (!IsValidCargoType(c)) { IConsolePrint(CC_ERROR, "cargo must be <cargo id>, 'any' or 'none'"); return true; }
+				cargo = c;
+				data = (argv.size() > 6 && StrEqualsIgnoreCase(argv[6], "carrying")) ? RVTC_IS_CARRYING : RVTC_CAN_CARRY;
+			}
+		} else if (StrEqualsIgnoreCase(key, "minwait")) {
+			mof = MOF_RV_MIN_WAIT;
+			data = ParseType<uint16_t>(value).value_or(0);
+		} else if (StrEqualsIgnoreCase(key, "dest")) {
+			mof = MOF_RV_DEST_STATION;
+			if (StrEqualsIgnoreCase(value, "any") || StrEqualsIgnoreCase(value, "none")) {
+				data = 0;
+			} else {
+				const uint16_t st_raw = ParseType<uint16_t>(value).value_or(0xFFFF);
+				if (!Station::IsValidID(StationID(st_raw))) { IConsolePrint(CC_ERROR, "dest must be <station id>, 'any' or 'none'"); return true; }
+				data = static_cast<uint16_t>(st_raw + 1);
+			}
+		} else {
+			IConsolePrint(CC_ERROR, "criteria key must be 'loadstate', 'cargo', 'minwait' or 'dest'");
+			return true;
+		}
+
+		const CompanyID old_local_company = _local_company;
+		const CompanyID old_current_company = _current_company;
+		_local_company = v->owner;
+		_current_company = v->owner;
+		const CommandCost res = CmdModifyOrder(DoCommandFlags{DoCommandFlag::Execute}, v->index, order_index, mof, data, cargo, std::string{});
+		_current_company = old_current_company;
+		_local_company = old_local_company;
+		const bool ok = res.Succeeded();
+		if (ok) RVTransportDebugSyncCurrentOrder(v, order_index);
+		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "criteria: {} (vehicle #{} order {} {}={}), load_state={} cargo_mode={} cargo={} min_wait={} dest={}",
+				ok ? "OK" : "FAILED", v->index.base(), order_index, key, value,
+				o->GetRVTransportLoadState(), o->GetRVTransportCargoMode(), o->GetRVTransportCargo(),
+				o->GetRVTransportMinWait(), o->GetRVTransportDestStation());
 		return true;
 	}
 

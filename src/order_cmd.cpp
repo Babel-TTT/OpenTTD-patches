@@ -450,7 +450,9 @@ void Order::AssignOrder(const Order &other)
 	if (other.extra != nullptr && (this->GetUnloadType() == OrderUnloadType::CargoTypeUnload || this->GetLoadType() == OrderLoadType::CargoTypeLoad
 			|| (this->IsType(OT_LABEL) && this->GetLabelSubType() == OLST_TEXT)
 			|| other.extra->xdata != 0 || other.extra->xdata2 != 0 || other.extra->xflags != 0 || other.extra->dispatch_index != 0 || other.extra->colour != 0
-			|| other.extra->rv_transport_flags != 0 || other.extra->rv_transport_max != 0)) {
+			|| other.extra->rv_transport_flags != 0 || other.extra->rv_transport_max != 0
+			|| other.extra->rv_transport_load_state != 0 || other.extra->rv_transport_cargo_mode != 0
+			|| other.extra->rv_transport_min_wait != 0 || other.extra->rv_transport_dest_station != 0)) {
 		this->AllocExtraInfo();
 		*(this->extra) = *(other.extra);
 	} else {
@@ -1969,7 +1971,8 @@ CommandCost CmdModifyOrder(DoCommandFlags flags, VehicleID veh, VehicleOrderID s
 	} else {
 		switch (order->GetType()) {
 			case OT_GOTO_STATION:
-				if (mof != MOF_NON_STOP && mof != MOF_STOP_LOCATION && mof != MOF_UNLOAD && mof != MOF_LOAD && mof != MOF_CARGO_TYPE_UNLOAD && mof != MOF_CARGO_TYPE_LOAD && mof != MOF_RV_TRAVEL_DIR && mof != MOF_RV_TRANSPORT) return CMD_ERROR;
+				if (mof != MOF_NON_STOP && mof != MOF_STOP_LOCATION && mof != MOF_UNLOAD && mof != MOF_LOAD && mof != MOF_CARGO_TYPE_UNLOAD && mof != MOF_CARGO_TYPE_LOAD && mof != MOF_RV_TRAVEL_DIR
+						&& mof != MOF_RV_TRANSPORT && mof != MOF_RV_LOAD_STATE && mof != MOF_RV_CARGO_MODE && mof != MOF_RV_MIN_WAIT && mof != MOF_RV_DEST_STATION) return CMD_ERROR;
 				break;
 
 			case OT_GOTO_DEPOT:
@@ -2066,6 +2069,30 @@ CommandCost CmdModifyOrder(DoCommandFlags flags, VehicleID veh, VehicleOrderID s
 			/* Road vehicle transport (RoRo): only meaningful for station orders, value = load/unload/match flags. */
 			if (!order->IsType(OT_GOTO_STATION)) return CommandCost(STR_ERROR_RV_TRANSPORT_STATION_ORDER_ONLY);
 			if ((data & ~(ORVTF_LOAD | ORVTF_UNLOAD | ORVTF_MATCH_DEST | ORVTF_WAIT)) != 0) return CMD_ERROR;
+			break;
+
+		case MOF_RV_LOAD_STATE:
+			/* RoRo selection criterion: load state of a candidate road vehicle. */
+			if (!order->IsType(OT_GOTO_STATION)) return CommandCost(STR_ERROR_RV_TRANSPORT_STATION_ORDER_ONLY);
+			if (data > RVTLS_FULL) return CMD_ERROR;
+			break;
+
+		case MOF_RV_CARGO_MODE:
+			/* RoRo selection criterion: cargo of a candidate road vehicle; the cargo itself is passed along. */
+			if (!order->IsType(OT_GOTO_STATION)) return CommandCost(STR_ERROR_RV_TRANSPORT_STATION_ORDER_ONLY);
+			if (data > RVTC_IS_CARRYING) return CMD_ERROR;
+			if (data != RVTC_ANY && !IsValidCargoType(cargo_id)) return CMD_ERROR;
+			break;
+
+		case MOF_RV_MIN_WAIT:
+			/* RoRo selection criterion: minimum waiting time of a candidate road vehicle (in days). */
+			if (!order->IsType(OT_GOTO_STATION)) return CommandCost(STR_ERROR_RV_TRANSPORT_STATION_ORDER_ONLY);
+			break;
+
+		case MOF_RV_DEST_STATION:
+			/* RoRo selection criterion: declared destination of a candidate road vehicle (station id + 1, 0 = unused). */
+			if (!order->IsType(OT_GOTO_STATION)) return CommandCost(STR_ERROR_RV_TRANSPORT_STATION_ORDER_ONLY);
+			if (data != 0 && !Station::IsValidID(StationID(data - 1))) return CMD_ERROR;
 			break;
 
 		case MOF_DEPOT_ACTION:
@@ -2380,6 +2407,23 @@ CommandCost CmdModifyOrder(DoCommandFlags flags, VehicleID veh, VehicleOrderID s
 
 			case MOF_RV_TRANSPORT:
 				order->GetRVTransportFlagsRef() = static_cast<uint8_t>(data);
+				break;
+
+			case MOF_RV_LOAD_STATE:
+				order->GetRVTransportLoadStateRef() = static_cast<uint8_t>(data);
+				break;
+
+			case MOF_RV_CARGO_MODE:
+				order->GetRVTransportCargoModeRef() = static_cast<uint8_t>(data);
+				order->GetRVTransportCargoRef() = (data == RVTC_ANY) ? INVALID_CARGO : static_cast<uint8_t>(cargo_id);
+				break;
+
+			case MOF_RV_MIN_WAIT:
+				order->GetRVTransportMinWaitRef() = static_cast<uint16_t>(data);
+				break;
+
+			case MOF_RV_DEST_STATION:
+				order->GetRVTransportDestStationRef() = static_cast<uint16_t>(data);
 				break;
 
 			case MOF_CARGO_TYPE_LOAD:
