@@ -292,6 +292,9 @@ M1 → M2 → M3 → M4 必须依序（各自收口即"最小可玩"增量）；
 | `verify_oldsave.ps1` | 基线 exe 生成旧档 → fork 加载 | `step1: OK` / `step2: PASS (fork loads pristine 0.73.1 savegame)` |
 | `m1_verify.ps1` | 自产地图生成→save→重新加载（自读自档）；Part A 若存在 `testrun\baseline.sav` 则顺带验证旧档 | `Part B: PASS (self save/load round-trip OK)` |
 | `smoke_m2a.ps1` | 空地图加载 + 跑 `rvtransport` 命令 | `SMOKE: no crash detected` |
+| `verify_intransit.ps1` | **收运中存档往返**：装载 → save → 重新加载 → 检查被运载状态是否保留 → 再落地 | `RESULT: PASS (carried state survives save/load, and unload still works)` |
+| `verify_sim.ps1` | 在真实存档上跑"等待 → 站内扫描 → 装载"完整链路 | `sim: scan found=true attached=true carrying=1` |
+| `verify_user_save.ps1` | 订单命令链验证（`rvtransport modify` load/unload/dest） | `modify: OK` |
 | `run_selftest.ps1` | （**已停用**）批量用户存档跑 selftest——用户存档过大/带 NewGRF，不适用 | — |
 
 ### D.4 调试/验收命令 `rvtransport`
@@ -308,9 +311,14 @@ rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（�
 
 ### D.5 进度与待办
 
-- ✅ **M1**：XSLFI_ROAD_VEH_TRANSPORT + 5 个 Vehicle 字段 + XSLF 门控序列化；**旧档兼容与自读自档已用真实档验证通过**。
+- ✅ **M1**：XSLFI_ROAD_VEH_TRANSPORT + 5 个 Vehicle 字段 + XSLF 门控序列化；旧档兼容与自读自档已用真实档验证通过。
 - ✅ **M2a**：`roadveh_transport.{h,cpp}` 收运/落地事务（Stopped+Hidden+哈希移除 / 路站格恢复）、容量-重量判定、调试命令。
 - ✅ **M2b**：`LoadUnloadVehicle` 读订单参数块执行装/卸；RV 站订单带 `ORVTF_LOAD` 时进入等待态并跳过普通装卸。
-- ⏳ **M2 未完项**：条件表达式筛选（M3）、“最小可玩闭环”的端到端验证（需要测试场景）、订单旗标 GUI 入口（M5）。
-- ⏳ **场景验证待决策**：A 自研 `rvtransport setup`（C++ 用 DoCommand 建站建车，一次性投入、全自动）；B 用户提供专用测试小图；C 等 M5 GUI 完成后人工手测。
+- ✅ **M3a/M3b**：目的地匹配筛选（`ORVTF_MATCH_DEST`，"不匹配即跳过"）；订单类型白名单修复（"不能执行这个命令"根因）。
+- ✅ **M4a**：被运载车辆从 tick 缓存/每日处理/经济/列表/组/基建统计/联机统计/灾难/绘制中豁免（仿 GVSF_VIRTUAL）。
+- ✅ **M5a–d**：订单窗口入口（装货方式下拉三项）、按载具类型文案、订单行与按钮状态显示、状态串、启用装载时默认打开目的地匹配。
+- ✅ **人工验收**：玩家实测确认"卡车自动等待 → 被装载 → 被卸下 → 继续执行调度"全流程正常。
+- ✅ **M8（部分）**：**收运中存档往返 PASS**（状态/宿主/节号/重量完整保留，读档后仍可落地）；**旧档兼容重跑 PASS**；自读自档 PASS；链路仿真与订单命令链 PASS。
+- 🔧 关键修复（都是实测暴露后定位）：`Order::AssignOrder()` 拷贝时丢弃 RoRo 旗标（车辆读到的是丢失后的当前订单）；装载时对非车头调用 `MarkDirty()` 触发 `CargoChanged()` 断言；订单类型白名单未允许新字段。
+- ⏳ **待办**：载体"等待道路载具"语义（火车现在不为等车延迟发车）；铰接道路车辆上下车；载运清单 UI；船/机实机验证；联机 sync test；性能验收；调试命令在合并前剥离。
 
