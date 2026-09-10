@@ -77,6 +77,7 @@ uint32_t RVTransportCountOnCarrier(const Vehicle *carrier)
 	for (const Vehicle *v : Vehicle::Iterate()) {
 		if ((v->rv_transport_flags & RVTF_TRANSPORTED) == 0) continue;
 		if (v->transported_by != carrier->index) continue;
+		if (!v->IsFrontEngine()) continue;      // an articulated vehicle counts once
 		count++;
 	}
 	return count;
@@ -89,6 +90,7 @@ Vehicle *RVTransportFindFirstOnCarrier(const Vehicle *carrier)
 	for (Vehicle *v : Vehicle::Iterate()) {
 		if ((v->rv_transport_flags & RVTF_TRANSPORTED) == 0) continue;
 		if (v->transported_by != carrier->index) continue;
+		if (!v->IsFrontEngine()) continue;
 		return v;
 	}
 	return nullptr;
@@ -168,12 +170,12 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 	if (carrier == nullptr || part == nullptr || rv == nullptr) return false;
 	if (carrier->type == VehicleType::Road) return false; // carriers are trains/ships/aircraft, not road vehicles
 	if (rv->type != VehicleType::Road) return false;
-	if (!rv->IsFrontEngine()) return false;              // articulated road vehicles: later stage
-	if (rv->Next() != nullptr) return false;             // do not carry multi-part road vehicles (yet)
+	if (!rv->IsFrontEngine()) return false;              // carriers take a whole road vehicle, never a lone part
 	if ((rv->rv_transport_flags & RVTF_TRANSPORTED) != 0) return false;
 	if (part->First() != carrier) return false;          // part must belong to this carrier
 	if (!force && !RVTransportPartCanCarry(part)) return false;
 
+	/* Articulated road vehicles are carried as a whole: cached_weight covers every part. */
 	uint32_t weight = RVTransportGetVehicleWeightTonnes(rv);
 	if (weight == 0) weight = 1;
 	if (!force) {
@@ -182,17 +184,6 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 		if (used + weight > capacity) return false;      // refused: no room on this part
 	}
 
-	/* commit */
-	rv->rv_transport_flags &= ~RVTF_WAITING;
-	rv->rv_transport_flags |= RVTF_TRANSPORTED;
-	rv->transported_by = carrier->index;
-	rv->transported_host_part = part->index;
-	rv->transported_weight = static_cast<uint16_t>(std::min<uint32_t>(weight, UINT16_MAX));
-
-	rv->vehstatus.Set(VehState::Stopped);
-	rv->vehstatus.Set(VehState::Hidden);
-	rv->cur_speed = 0;
-
 	/* The road vehicle leaves the road stop it was loaded at: it is off the map now and must not
 	 * keep a parking bay allocated (nor look like it is parked in a stop, so that destroying it
 	 * while it is carried cannot release the same bay a second time). */
@@ -200,10 +191,24 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 		RoadStop *rs = RoadStop::GetByTile(rv->tile, GetRoadStopType(rv->tile));
 		if (rs != nullptr) rs->Leave(RoadVehicle::From(rv));
 	}
-	RoadVehicle::From(rv)->state = DiagDirToDiagTrackdir(DirToDiagDir(rv->direction));
 
-	UpdateVehicleTileHash(rv, true);   // off the road network (like virtual vehicles)
-	rv->UpdateIsDrawn();
+	/* Hide the whole road vehicle: every part of an articulated vehicle is drawn and hashed on its
+	 * own, and in a bend the parts are not even on the same tile. */
+	rv->rv_transport_flags &= ~RVTF_WAITING;
+	for (Vehicle *u = rv; u != nullptr; u = u->Next()) {
+		u->rv_transport_flags |= RVTF_TRANSPORTED;
+		u->transported_by = carrier->index;
+		u->transported_host_part = part->index;
+		/* Only the front records the weight of the whole (articulated) vehicle. */
+		u->transported_weight = (u == rv) ? static_cast<uint16_t>(std::min<uint32_t>(weight, UINT16_MAX)) : 0;
+
+		u->vehstatus.Set(VehState::Stopped);
+		u->vehstatus.Set(VehState::Hidden);
+		u->cur_speed = 0;
+		RoadVehicle::From(u)->state = DiagDirToDiagTrackdir(DirToDiagDir(u->direction));
+		UpdateVehicleTileHash(u, true);   // off the road network (like virtual vehicles)
+		u->UpdateIsDrawn();
+	}
 
 	carrier->MarkDirty();              // refresh carrier weight; must be the front (CargoChanged asserts this->First() == this)
 	return true;
@@ -255,34 +260,36 @@ bool RVTransportDetachAtStation(Vehicle *carrier, Station *st)
 	for (Vehicle *v : Vehicle::Iterate()) {
 		if ((v->rv_transport_flags & RVTF_TRANSPORTED) == 0) continue;
 		if (v->transported_by != carrier->index) continue;
-		if (!v->IsFrontEngine()) continue;
-		if (v->Next() != nullptr) continue;
+		if (!v->IsFrontEngine()) continue;          // the parts are handled together with the front
 
 		TileIndex tile = INVALID_TILE;
 		DiagDirection dd = DiagDirection::NE;
 		if (!FindFreeRoadStopTile(st, tile, dd)) continue; // no room: stay on the carrier, retry later
 
-		/* commit */
-		v->rv_transport_flags &= ~RVTF_TRANSPORTED;
-		v->transported_by = VehicleID::Invalid();
-		v->transported_host_part = VehicleID::Invalid();
-		v->transported_weight = 0;
-		v->transport_wait_tick = 0;
+		/* Put the whole road vehicle on that tile, in the same way a vehicle leaves a depot: every
+		 * part starts on the tile and spreads out while the vehicle drives off. */
+		for (Vehicle *u = v; u != nullptr; u = u->Next()) {
+			u->rv_transport_flags &= ~RVTF_TRANSPORTED;
+			u->transported_by = VehicleID::Invalid();
+			u->transported_host_part = VehicleID::Invalid();
+			u->transported_weight = 0;
+			u->transport_wait_tick = 0;
 
-		RoadVehicle *rv = RoadVehicle::From(v);
-		v->tile = tile;
-		v->x_pos = TileX(tile) * TILE_SIZE + TILE_SIZE / 2;
-		v->y_pos = TileY(tile) * TILE_SIZE + TILE_SIZE / 2;
-		v->z_pos = GetSlopePixelZ(v->x_pos, v->y_pos);
-		v->direction = DiagDirToDir(dd);
-		rv->state = DiagDirToDiagTrackdir(dd);
-		rv->frame = 0;
-		v->progress = 0;
-		v->cur_speed = 0;
-		v->vehstatus.Reset(VehState::Hidden);
-		v->vehstatus.Reset(VehState::Stopped);
-		UpdateVehicleTileHash(v, false);   // back on the road network
-		v->UpdateIsDrawn();
+			RoadVehicle *rv = RoadVehicle::From(u);
+			u->tile = tile;
+			u->x_pos = TileX(tile) * TILE_SIZE + TILE_SIZE / 2;
+			u->y_pos = TileY(tile) * TILE_SIZE + TILE_SIZE / 2;
+			u->z_pos = GetSlopePixelZ(u->x_pos, u->y_pos);
+			u->direction = DiagDirToDir(dd);
+			rv->state = DiagDirToDiagTrackdir(dd);
+			rv->frame = 0;
+			u->progress = 0;
+			u->cur_speed = 0;
+			u->vehstatus.Reset(VehState::Hidden);
+			u->vehstatus.Reset(VehState::Stopped);
+			UpdateVehicleTileHash(u, false);   // back on the road network
+			u->UpdateIsDrawn();
+		}
 
 		carrier->MarkDirty();
 		any = true;
@@ -360,6 +367,18 @@ void RVTransportValidateAfterLoad()
 	for (Vehicle *v : Vehicle::Iterate()) {
 		if (v->type != VehicleType::Road) continue;
 
+		if (!v->IsFrontEngine()) {
+			/* A part of an articulated road vehicle follows its front: only clear stale state here. */
+			if ((v->First()->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) {
+				v->rv_transport_flags &= ~Vehicle::RV_TRANSPORT_CARRIED;
+				v->transported_by = VehicleID::Invalid();
+				v->transported_host_part = VehicleID::Invalid();
+				v->transported_weight = 0;
+				v->vehstatus.Reset(VehState::Hidden);
+			}
+			continue;
+		}
+
 		if ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) {
 			/* Not carried: drop any stale carrier reference left behind. */
 			v->transported_by = VehicleID::Invalid();
@@ -386,10 +405,22 @@ void RVTransportValidateAfterLoad()
 		if (v != nullptr) RVTransportForceRelease(v);
 	}
 	for (const VehicleID id : remove) {
-		Vehicle *v = Vehicle::GetIfValid(id);
-		if (v == nullptr) continue;
-		Debug(misc, 0, "RoRo: removing road vehicle #{} which was carried and has no valid tile", id.base());
-		delete v;
+		Vehicle *front = Vehicle::GetIfValid(id);
+		if (front == nullptr) continue;
+
+		std::vector<VehicleID> chain;
+		for (Vehicle *u = front; u != nullptr; u = u->Next()) chain.push_back(u->index);
+		for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
+			Vehicle *u = Vehicle::GetIfValid(*it);
+			if (u == nullptr) continue;
+			Debug(misc, 0, "RoRo: removing road vehicle #{} which was carried and has no valid tile", u->index.base());
+			u->rv_transport_flags &= ~Vehicle::RV_TRANSPORT_CARRIED;
+			u->transported_by = VehicleID::Invalid();
+			u->transported_host_part = VehicleID::Invalid();
+			u->transported_weight = 0;
+			if (u->Previous() != nullptr) u->Previous()->SetNext(nullptr);
+			delete u;
+		}
 	}
 }
 
@@ -405,25 +436,30 @@ void RVTransportForceRelease(Vehicle *rv)
 	if (rv == nullptr) return;
 	if ((rv->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) return;
 
-	rv->rv_transport_flags &= ~Vehicle::RV_TRANSPORT_CARRIED;
-	rv->transported_by = VehicleID::Invalid();
-	rv->transported_host_part = VehicleID::Invalid();
-	rv->transported_weight = 0;
-	rv->vehstatus.Reset(VehState::Hidden);
-	rv->vehstatus.Reset(VehState::Stopped);
-	rv->cur_speed = 0;
+	/* Release the whole (possibly articulated) road vehicle at its remembered tile. */
+	const TileIndex tile = rv->tile;
+	for (Vehicle *u = rv; u != nullptr; u = u->Next()) {
+		u->rv_transport_flags &= ~Vehicle::RV_TRANSPORT_CARRIED;
+		u->transported_by = VehicleID::Invalid();
+		u->transported_host_part = VehicleID::Invalid();
+		u->transported_weight = 0;
+		u->vehstatus.Reset(VehState::Hidden);
+		u->vehstatus.Reset(VehState::Stopped);
+		u->cur_speed = 0;
 
-	if (rv->type == VehicleType::Road && IsValidTile(rv->tile)) {
-		RoadVehicle *rvv = RoadVehicle::From(rv);
-		rv->x_pos = TileX(rv->tile) * TILE_SIZE + TILE_SIZE / 2;
-		rv->y_pos = TileY(rv->tile) * TILE_SIZE + TILE_SIZE / 2;
-		rv->z_pos = GetSlopePixelZ(rv->x_pos, rv->y_pos);
-		rv->direction = DiagDirToDir(DiagDirection::NE);
-		rvv->state = DiagDirToDiagTrackdir(DiagDirection::NE);
-		rvv->frame = 0;
-		UpdateVehicleTileHash(rv, false);   // back on the road network
+		if (u->type == VehicleType::Road && IsValidTile(tile)) {
+			RoadVehicle *rvv = RoadVehicle::From(u);
+			u->tile = tile;
+			u->x_pos = TileX(tile) * TILE_SIZE + TILE_SIZE / 2;
+			u->y_pos = TileY(tile) * TILE_SIZE + TILE_SIZE / 2;
+			u->z_pos = GetSlopePixelZ(u->x_pos, u->y_pos);
+			u->direction = DiagDirToDir(DiagDirection::NE);
+			rvv->state = DiagDirToDiagTrackdir(DiagDirection::NE);
+			rvv->frame = 0;
+			UpdateVehicleTileHash(u, false);   // back on the road network
+		}
+		u->UpdateIsDrawn();
 	}
-	rv->UpdateIsDrawn();
 }
 
 /**
@@ -451,21 +487,33 @@ void RVTransportDestroyCarriedVehicles(Vehicle *carrier)
 	if (carrier->type == VehicleType::Road) return; // a road vehicle is never a carrier
 
 	/* Collect first: deleting a vehicle modifies the pool, so it must not happen while iterating. */
-	std::vector<VehicleID> carried;
+	std::vector<VehicleID> fronts;
 	for (const Vehicle *v : Vehicle::Iterate()) {
 		if ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) continue;
 		if (v->transported_by != carrier->index) continue;
-		carried.push_back(v->index);
+		if (!v->IsFrontEngine()) continue;
+		fronts.push_back(v->index);
 	}
 
-	for (const VehicleID id : carried) {
-		Vehicle *v = Vehicle::GetIfValid(id);
-		if (v == nullptr) continue;
-		/* Detach first, so that nothing refers to a vehicle which is about to disappear. */
-		v->rv_transport_flags &= ~Vehicle::RV_TRANSPORT_CARRIED;
-		v->transported_by = VehicleID::Invalid();
-		v->transported_host_part = VehicleID::Invalid();
-		v->transported_weight = 0;
-		delete v;
+	for (const VehicleID id : fronts) {
+		Vehicle *front = Vehicle::GetIfValid(id);
+		if (front == nullptr) continue;
+
+		/* Gather the whole (possibly articulated) vehicle, then delete it from the rear, as a part
+		 * must never outlive the vehicle it is attached to. */
+		std::vector<VehicleID> chain;
+		for (Vehicle *u = front; u != nullptr; u = u->Next()) chain.push_back(u->index);
+
+		for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
+			Vehicle *u = Vehicle::GetIfValid(*it);
+			if (u == nullptr) continue;
+			/* Detach first, so that nothing refers to a vehicle which is about to disappear. */
+			u->rv_transport_flags &= ~Vehicle::RV_TRANSPORT_CARRIED;
+			u->transported_by = VehicleID::Invalid();
+			u->transported_host_part = VehicleID::Invalid();
+			u->transported_weight = 0;
+			if (u->Previous() != nullptr) u->Previous()->SetNext(nullptr);
+			delete u;
+		}
 	}
 }

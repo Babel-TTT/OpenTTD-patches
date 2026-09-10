@@ -4512,7 +4512,16 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 				v->vehstatus.Test(VehState::Hidden), v->vehstatus.Test(VehState::Stopped),
 				v->transported_by.base(), v->transported_host_part.base(), v->transported_weight, v->transport_wait_tick);
 		if (v->type == VehicleType::Road) {
-			IConsolePrint(CC_DEFAULT, "  weights: unladen={}t on_board={}", RVTransportGetVehicleWeightTonnes(v), RVTransportCountOnCarrier(v));
+			/* Show every part of an articulated road vehicle: all of them must be carried together. */
+			uint parts = 0;
+			for (const Vehicle *u = v; u != nullptr; u = u->Next()) {
+				IConsolePrint(CC_DEFAULT, "  part {}: #{} flags={} tile=0x{:X} hidden={} stopped={} state={} artic={}",
+						parts, u->index.base(), u->rv_transport_flags, u->tile.base(),
+						u->vehstatus.Test(VehState::Hidden), u->vehstatus.Test(VehState::Stopped),
+						(int)RoadVehicle::From(u)->state, u->IsArticulatedPart());
+				parts++;
+			}
+			IConsolePrint(CC_DEFAULT, "  weights: unladen={}t on_board={} parts={}", RVTransportGetVehicleWeightTonnes(v), RVTransportCountOnCarrier(v), parts);
 		}
 		return true;
 	}

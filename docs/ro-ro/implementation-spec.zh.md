@@ -328,11 +328,14 @@ rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（�
 - ✅ **M6**：载体"等待道路载具"（`ORVTF_WAIT`，实现方式是在 `LoadUnloadVehicle` 里压住 `finished_loading`——语义与 "Full load" 完全一致，**无限等待**，引擎没有超时兜底）；载体状态串追加"正在运载 N 辆道路载具"。
 - ✅ **M7**：卖出保护（被运载车辆 / 载有车辆的载体都不能卖）；载体销毁时**连同所载车辆一起销毁**（`Vehicle::PreDestructor` → `RVTransportDestroyCarriedVehicles`，语义同火车车厢出事）；装载时释放原停车位（`RoadStop::Leave`）并把车辆状态改成行驶态，避免 bay 泄漏与二次释放；载体类型收紧为火车/船/机。
 - ✅ **M7b（本轮修正）**：被运载车辆**仍留在车辆/分组列表里**（不再隐藏），**定位与跟随镜头指向其载体**（`RVTransportGetFollowVehicle`，接入 viewport.cpp 的每帧跟随、车辆窗口"定位车辆"、window.cpp 与 vehicle_gui.cpp 的落点计算）；`rvtransport release` 保留为调试命令与读档兜底通道。
+- ✅ **M9：铰接（多节）道路载具**：装载/卸载/释放/销毁全部改为**按整挂（front + 各铰接节）**处理——每一节都要设 `RVTF_TRANSPORTED`、Hidden、逐节从路网哈希摘除（弯道上各节本来就在不同格）；卸载与释放时整挂落到同一格并按"出库"方式散开（与 `RoadVehLeaveDepot()` 同构）；重量沿用引擎的 `gcache.cached_weight`（本身就是整挂重量，`CargoChanged()` 汇总所有节）；计数/列表/读档校验一律以车头为准（`IsFrontEngine()` 过滤，避免整挂被重复计数或只放走一节）；`rvtransport state` 逐节打印 `part N: ... hidden=... state=... artic=...` 便于核对。
+  - ⚠ **实机走查待做**：原版内容**没有铰接道路车辆**（铰接客车/卡车都来自 NewGRF），所以这一项的端到端验证需要一局加载了含铰接车的车辆集（如本地 `chinasetbuses.grf`）的存档；手测步骤见 `manual-test-guide.zh.md` 第 8 节。单节路径的回归（attach/detach/intransit/sim/toggle/release/destroy）已全绿。
+  - 📌 引擎自身约束（非本分支引入）：**铰接车无法进入港湾式停车位**（`RoadStop::Enter()` 直接拒绝 `HasArticulatedPart()`），因此铰接车只能在**直通式**停靠站等待/被放下。
 - ✅ **M5c（修正）**：订单窗口的两处道路载具设置分别归入**装货/卸货两个下拉**，并以**勾选框**呈现（可多选、点击后原地刷新）；修掉"启用了装载却显示成'只装载去下一站的道路载具'"的显示优先级问题（根因：文案与行文本用 `if/else if` 让 `ORVTF_MATCH_DEST` 抢在 `ORVTF_LOAD` 前面，且勾选装载时无条件默认打开匹配位，连卡车自己的订单也被置位）。
 - ✅ **人工验收**：玩家实测确认"卡车自动等待 → 被装载 → 被卸下 → 继续执行调度"全流程正常。
 - ✅ **M8（部分）**：**收运中存档往返 PASS**（状态/宿主/节号/重量完整保留，读档后仍可落地）；**旧档兼容重跑 PASS**；自读自档 PASS；链路仿真、强制装卸、订单命令链、勾选规则、释放路径全部 PASS（脚本清单见 D.3）。
 - 🔧 关键修复（都是实测暴露后定位）：`Order::AssignOrder()` 拷贝时丢弃 RoRo 旗标（车辆读到的是丢失后的当前订单）；装载时对非车头调用 `MarkDirty()` 触发 `CargoChanged()` 断言；订单类型白名单未允许新字段；订单行/按钮文案被匹配位抢占；卡车订单被误置匹配位。
-- ⏳ **待办**：铰接（多节）道路车辆上下车；车辆详情窗口里的"载运清单"；船/机载体实机走查（手测步骤见 `manual-test-guide.zh.md` 第 6 节）；载体事故销毁路径实机走查；**等待中的卡车仍占着停靠点 bay**（是否让等待时也释放 bay 待定）；读档时对被运载状态的校验（载体已不存在的孤儿车）；联机 sync test；性能验收；合并前剥离 `rvtransport` 调试命令。
+- ⏳ **待办**：铰接车实机走查（需含铰接车的 NewGRF，见 M9）；**条件选择运载**（照 px-patch"连接车辆"的参数化筛选风格：候选载货状态/可载货物/车组/等待时长/声明目的地，3–4 轮）；车辆详情窗口里的"载运清单"；船/机载体实机走查（手测步骤见 `manual-test-guide.zh.md` 第 6 节）；载体事故销毁路径实机走查；**等待中的卡车仍占着停靠点 bay**（是否让等待时也释放 bay 待定）；联机 sync test；性能验收；合并前剥离 `rvtransport` 调试命令。
 
 ---
 

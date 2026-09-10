@@ -17,10 +17,15 @@ $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
 $psi.WorkingDirectory = $root
 $p = [System.Diagnostics.Process]::Start($psi)
-$o = $p.StandardOutput.ReadToEndAsync()
+
+# Pause the game as early as possible: the script waits for the savegame to load while the game is
+# already ticking, and otherwise vehicles may unload themselves (or reach a station) before the
+# test starts, which makes the state-sensitive checks flaky.
+foreach ($i in 1..3) { try { $p.StandardInput.WriteLine('pause'); $p.StandardInput.Flush() } catch {}; Start-Sleep -Seconds 1 }$o = $p.StandardOutput.ReadToEndAsync()
 $e = $p.StandardError.ReadToEndAsync()
 Start-Sleep -Seconds 45
 $cmds = @(
+    'pause',
     'rvtransport list',
     'rvtransport attach firsttrain firstrv force',
     'rvtransport state firstrv',
