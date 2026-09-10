@@ -71,4 +71,10 @@ uint32_t RVTransportCountOnCarrier(const Vehicle *carrier);
 /** First road vehicle currently carried by this carrier (front vehicle), or nullptr. */
 Vehicle *RVTransportFindFirstOnCarrier(const Vehicle *carrier);
 
+/**
+ * Emergency release of a carried road vehicle, used when its carrier is destroyed: the road
+ * vehicle is put back on the road network at its remembered tile and continues on its own.
+ */
+void RVTransportForceRelease(Vehicle *rv);
+
 #endif /* ROADVEH_TRANSPORT_H */

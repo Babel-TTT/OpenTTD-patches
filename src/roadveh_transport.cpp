@@ -290,3 +290,36 @@ Vehicle *RVTransportFindWaitingAtStation(const Station *st, const Vehicle *carri
 	}
 	return nullptr;
 }
+
+/**
+ * Emergency release: put a carried road vehicle back on the road network at its remembered
+ * tile. Used when its carrier is destroyed, so that the vehicle does not keep pointing at a
+ * deleted carrier. The vehicle keeps its own orders and simply continues on its way.
+ */
+void RVTransportForceRelease(Vehicle *rv)
+{
+	extern void UpdateVehicleTileHash(Vehicle *v, bool remove);
+
+	if (rv == nullptr) return;
+	if ((rv->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) return;
+
+	rv->rv_transport_flags &= ~Vehicle::RV_TRANSPORT_CARRIED;
+	rv->transported_by = VehicleID::Invalid();
+	rv->transported_host_part = VehicleID::Invalid();
+	rv->transported_weight = 0;
+	rv->vehstatus.Reset(VehState::Hidden);
+	rv->vehstatus.Reset(VehState::Stopped);
+	rv->cur_speed = 0;
+
+	if (rv->type == VehicleType::Road && IsValidTile(rv->tile)) {
+		RoadVehicle *rvv = RoadVehicle::From(rv);
+		rv->x_pos = TileX(rv->tile) * TILE_SIZE + TILE_SIZE / 2;
+		rv->y_pos = TileY(rv->tile) * TILE_SIZE + TILE_SIZE / 2;
+		rv->z_pos = GetSlopePixelZ(rv->x_pos, rv->y_pos);
+		rv->direction = DiagDirToDir(DiagDirection::NE);
+		rvv->state = DiagDirToDiagTrackdir(DiagDirection::NE);
+		rvv->frame = 0;
+		UpdateVehicleTileHash(rv, false);   // back on the road network
+	}
+	rv->UpdateIsDrawn();
+}

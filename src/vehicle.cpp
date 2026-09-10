@@ -1156,6 +1156,16 @@ void Vehicle::PreDestructor()
 
 	SCOPE_INFO_FMT([this], "Vehicle::PreDestructor: {}", VehicleInfoDumper(this));
 
+	/* RoRo: release the road vehicles this vehicle carries, so that they do not keep pointing
+	 * at a vehicle which is being destroyed (e.g. destroyed in a crash). */
+	if (this->IsPrimaryVehicle()) {
+		for (Vehicle *carried : Vehicle::Iterate()) {
+			if ((carried->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) continue;
+			if (carried->transported_by != this->index) continue;
+			RVTransportForceRelease(carried);
+		}
+	}
+
 	if (Station::IsValidID(this->last_station_visited)) {
 		Station *st = Station::Get(this->last_station_visited);
 		st->loading_vehicles.erase(std::remove(st->loading_vehicles.begin(), st->loading_vehicles.end(), this), st->loading_vehicles.end());
