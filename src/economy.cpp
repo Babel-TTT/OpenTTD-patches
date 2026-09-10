@@ -2403,6 +2403,15 @@ static void LoadUnloadVehicle(Vehicle *front)
 			Train::From(front)->flags.Set(VehicleRailFlag::AdvanceInPlatform);
 		}
 
+		/* RoRo: a carrier ordered to wait for road vehicles keeps loading while there is still
+		 * somebody to pick up at this station, and while nothing has been loaded yet. */
+		if (const uint8_t rv_order = front->current_order.GetRVTransportFlags(); (rv_order & ORVTF_WAIT) != 0 && (rv_order & ORVTF_LOAD) != 0) {
+			const bool match_dest = (rv_order & ORVTF_MATCH_DEST) != 0;
+			if (RVTransportFindWaitingAtStation(st, front, match_dest) != nullptr || RVTransportCountOnCarrier(front) == 0) {
+				finished_loading = false;
+			}
+		}
+
 		/* Refresh next hop stats if we're full loading to make the links
 		 * known to the distribution algorithm and allow cargo to be sent
 		 * along them. Otherwise the vehicle could wait for cargo

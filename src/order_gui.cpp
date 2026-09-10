@@ -571,6 +571,7 @@ static const StringID _order_full_load_dropdown[] = {
 	STR_ORDER_DROP_LOAD_ROAD_VEHICLES,
 	STR_ORDER_DROP_UNLOAD_ROAD_VEHICLES,
 	STR_ORDER_DROP_RV_MATCH_DEST,
+	STR_ORDER_DROP_WAIT_FOR_ROAD_VEHICLES,
 };
 
 /**
@@ -589,12 +590,14 @@ static const StringID _order_full_load_dropdown_rv[] = {
 	STR_ORDER_DROP_WAIT_TO_BE_TRANSPORTED,
 	STR_ORDER_DROP_BE_UNLOADED_HERE,
 	STR_EMPTY,
+	STR_EMPTY,
 };
 
 /** Dropdown indices of the road vehicle transport (RoRo) entries in _order_full_load_dropdown. */
 static const int ODDI_RV_TRANSPORT_LOAD = 7;
 static const int ODDI_RV_TRANSPORT_UNLOAD = 8;
 static const int ODDI_RV_MATCH_DEST = 9;
+static const int ODDI_RV_WAIT = 10;
 
 static const StringID _order_unload_dropdown[] = {
 	STR_ORDER_DROP_UNLOAD_IF_ACCEPTED,
@@ -955,6 +958,10 @@ void DrawOrderString(const Vehicle *v, const Order *order, int order_index, int 
 				} else if ((rvf & ORVTF_LOAD) != 0) {
 					line.push_back(' ');
 					AppendStringInPlace(line, (v->type == VehicleType::Road) ? STR_ORDER_DROP_WAIT_TO_BE_TRANSPORTED : STR_ORDER_DROP_LOAD_ROAD_VEHICLES);
+					if ((rvf & ORVTF_WAIT) != 0 && v->type != VehicleType::Road) {
+						line.push_back(' ');
+						AppendStringInPlace(line, STR_ORDER_DROP_WAIT_FOR_ROAD_VEHICLES);
+					}
 				} else if ((rvf & ORVTF_UNLOAD) != 0) {
 					line.push_back(' ');
 					AppendStringInPlace(line, (v->type == VehicleType::Road) ? STR_ORDER_DROP_BE_UNLOADED_HERE : STR_ORDER_DROP_UNLOAD_ROAD_VEHICLES);
@@ -3797,14 +3804,15 @@ public:
 				break;
 
 			case WID_O_FULL_LOAD:
-				if (index == ODDI_RV_TRANSPORT_LOAD || index == ODDI_RV_TRANSPORT_UNLOAD || index == ODDI_RV_MATCH_DEST) {
-					/* RoRo: toggle loading/unloading of road vehicles, or the destination match, on this station order. */
+				if (index == ODDI_RV_TRANSPORT_LOAD || index == ODDI_RV_TRANSPORT_UNLOAD || index == ODDI_RV_MATCH_DEST || index == ODDI_RV_WAIT) {
+					/* RoRo: toggle loading/unloading of road vehicles, the destination match, or waiting. */
 					const VehicleOrderID sel = this->OrderGetSel();
 					const Order *o = this->vehicle->GetOrder(sel);
 					if (o != nullptr) {
 						uint8_t flags = o->GetRVTransportFlags();
 						const uint8_t bit = (index == ODDI_RV_TRANSPORT_LOAD) ? ORVTF_LOAD :
-								((index == ODDI_RV_TRANSPORT_UNLOAD) ? ORVTF_UNLOAD : ORVTF_MATCH_DEST);
+								((index == ODDI_RV_TRANSPORT_UNLOAD) ? ORVTF_UNLOAD :
+								((index == ODDI_RV_MATCH_DEST) ? ORVTF_MATCH_DEST : ORVTF_WAIT));
 						const bool enabling = (flags & bit) == 0;
 						flags = enabling ? (flags | bit) : (flags & ~bit);
 						/* RoRo: when loading road vehicles is enabled, default to only taking vehicles

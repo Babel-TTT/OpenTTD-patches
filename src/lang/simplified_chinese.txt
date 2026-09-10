@@ -4707,6 +4707,7 @@ STR_ORDER_DROP_NO_LOADING                                       :不装载
 STR_ORDER_DROP_LOAD_ROAD_VEHICLES                               :装载道路载具
 STR_ORDER_DROP_UNLOAD_ROAD_VEHICLES                             :卸载道路载具
 STR_ORDER_DROP_RV_MATCH_DEST                                    :只装载去下一站的道路载具
+STR_ORDER_DROP_WAIT_FOR_ROAD_VEHICLES                           :等待道路载具
 STR_ORDER_DROP_WAIT_TO_BE_TRANSPORTED                           :等待被运载
 STR_ORDER_DROP_BE_UNLOADED_HERE                                 :在此被卸下
 STR_ORDER_TOOLTIP_FULL_LOAD                                     :{BLACK}修改当前命令在车站的装载措施

@@ -25,6 +25,7 @@ static const uint8_t RVTF_TRANSPORTED = 1 << 1; ///< Road vehicle is currently c
 static const uint8_t ORVTF_LOAD   = 1 << 0; ///< This station order loads road vehicles onto the carrier.
 static const uint8_t ORVTF_UNLOAD = 1 << 1; ///< This station order unloads road vehicles from the carrier.
 static const uint8_t ORVTF_MATCH_DEST = 1 << 2; ///< Only load road vehicles whose declared unload station equals the carrier's next stop.
+static const uint8_t ORVTF_WAIT = 1 << 3;       ///< Keep waiting at this station until road vehicles have been loaded.
 
 /** Station a road vehicle wants to be unloaded at (from its own "unload road vehicles" order), or invalid. */
 StationID RVTransportGetDeclaredDestination(const Vehicle *rv);
