@@ -4386,6 +4386,12 @@ public:
 			}
 		}
 
+		/* RoRo: a carrier reports how many road vehicles it is currently carrying. */
+		if (v->type != VehicleType::Road) {
+			const uint32_t carried = RVTransportCountOnCarrier(v);
+			if (carried > 0) append(STR_VEHICLE_STATUS_CARRYING_ROAD_VEHICLES, carried);
+		}
+
 		return buffer.to_string();
 	}
 
