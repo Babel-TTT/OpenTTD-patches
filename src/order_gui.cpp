@@ -945,6 +945,20 @@ void DrawOrderString(const Vehicle *v, const Order *order, int order_index, int 
 					line.push_back(' ');
 					AppendStringInPlace(line, STR_ORDER_RV_DIR_NE + to_underlying(order->GetRoadVehTravelDirection()));
 				}
+
+				/* RoRo: show that this order loads/unloads road vehicles (or, for a road vehicle,
+				 * that it waits to be transported / is unloaded here). */
+				const uint8_t rvf = order->GetRVTransportFlags();
+				if ((rvf & ORVTF_MATCH_DEST) != 0) {
+					line.push_back(' ');
+					AppendStringInPlace(line, STR_ORDER_DROP_RV_MATCH_DEST);
+				} else if ((rvf & ORVTF_LOAD) != 0) {
+					line.push_back(' ');
+					AppendStringInPlace(line, (v->type == VehicleType::Road) ? STR_ORDER_DROP_WAIT_TO_BE_TRANSPORTED : STR_ORDER_DROP_LOAD_ROAD_VEHICLES);
+				} else if ((rvf & ORVTF_UNLOAD) != 0) {
+					line.push_back(' ');
+					AppendStringInPlace(line, (v->type == VehicleType::Road) ? STR_ORDER_DROP_BE_UNLOADED_HERE : STR_ORDER_DROP_UNLOAD_ROAD_VEHICLES);
+				}
 			}
 			break;
 		}
@@ -2394,6 +2408,22 @@ public:
 					}
 					this->SetWidgetLoweredState(WID_O_FULL_LOAD, order->GetLoadType() == OrderLoadType::FullLoadAny);
 					this->SetWidgetLoweredState(WID_O_UNLOAD, order->GetUnloadType() == OrderUnloadType::Unload);
+
+					/* RoRo: reflect the road vehicle transport setting of this order in the load button. */
+					{
+						const uint8_t rvf = order->GetRVTransportFlags();
+						StringID rv_str = STR_ORDER_TOGGLE_FULL_LOAD;
+						if ((rvf & ORVTF_MATCH_DEST) != 0) {
+							rv_str = STR_ORDER_DROP_RV_MATCH_DEST;
+						} else if ((rvf & (ORVTF_LOAD | ORVTF_UNLOAD)) != 0) {
+							if (this->vehicle->type == VehicleType::Road) {
+								rv_str = ((rvf & ORVTF_UNLOAD) != 0) ? STR_ORDER_DROP_BE_UNLOADED_HERE : STR_ORDER_DROP_WAIT_TO_BE_TRANSPORTED;
+							} else {
+								rv_str = ((rvf & ORVTF_UNLOAD) != 0) ? STR_ORDER_DROP_UNLOAD_ROAD_VEHICLES : STR_ORDER_DROP_LOAD_ROAD_VEHICLES;
+							}
+						}
+						this->GetWidget<NWidgetCore>(WID_O_FULL_LOAD)->SetString(rv_str);
+					}
 
 					/* Can only do refitting when stopping at the destination and loading cargo.
 					 * Also enable the button if a refit is already set to allow clearing it. */

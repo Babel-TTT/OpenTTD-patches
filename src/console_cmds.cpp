@@ -4570,6 +4570,26 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		return true;
 	}
 
+	if (StrEqualsIgnoreCase(argv[1], "orders")) {
+		if (argv.size() != 3) return false;
+		Vehicle *v = get_veh(argv[2]);
+		if (v == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		IConsolePrint(CC_DEFAULT, "vehicle #{} type={} has {} orders (current index {}):",
+				v->index.base(), (int)v->type, v->GetNumOrders(), v->cur_real_order_index);
+		for (VehicleOrderID i = 0; i < v->GetNumOrders(); i++) {
+			const Order *o = v->GetOrder(i);
+			if (o == nullptr) continue;
+			const uint8_t rvf = o->GetRVTransportFlags();
+			IConsolePrint(CC_DEFAULT, "  [{}] station={} depot={} waypoint={} load={} unload={} rvflags={}{}{}{}",
+					i, o->IsType(OT_GOTO_STATION), o->IsType(OT_GOTO_DEPOT), o->IsType(OT_GOTO_WAYPOINT),
+					(int)o->GetLoadType(), (int)o->GetUnloadType(), rvf,
+					((rvf & ORVTF_LOAD) != 0) ? " RV_LOAD" : "",
+					((rvf & ORVTF_UNLOAD) != 0) ? " RV_UNLOAD" : "",
+					((rvf & ORVTF_MATCH_DEST) != 0) ? " RV_MATCH_DEST" : "");
+		}
+		return true;
+	}
+
 	if (StrEqualsIgnoreCase(argv[1], "attach")) {
 		if (argv.size() < 4) return false;
 		Vehicle *carrier = get_veh(argv[2]);
