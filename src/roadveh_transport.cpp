@@ -18,6 +18,7 @@
 #include "map_func.h"
 #include "road_map.h"
 #include "roadveh.h"
+#include "settings_type.h"
 #include "station_base.h"
 #include "station_map.h"
 #include "tilearea_type.h"
@@ -33,12 +34,13 @@ uint32_t RVTransportGetVehicleWeightTonnes(const Vehicle *rv)
 	return RoadVehicle::From(rv)->gcache.cached_weight;
 }
 
-/** Is this carrier part able to carry road vehicles (its current cargo is class "oversized")? */
+/** Is this carrier part able to carry road vehicles? */
 bool RVTransportPartCanCarry(const Vehicle *part)
 {
 	if (part == nullptr) return false;
 	if (part->cargo_cap == 0) return false;
 	if (!IsValidCargoType(part->cargo_type)) return false;
+	if (!_settings_game.vehicle.rv_transport_require_oversized) return true; // default: any part with cargo capacity
 	return IsCargoInClass(part->cargo_type, CargoClass::Oversized);
 }
 

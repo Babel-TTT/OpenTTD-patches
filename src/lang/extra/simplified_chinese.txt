@@ -533,6 +533,9 @@ STR_CONFIG_SETTING_SHARING_ORDERS_TO_OTHERS                     :不能更改这
 STR_CONFIG_SETTING_TRAIN_SPEED_ADAPTATION                       :启用列车速度调整：{STRING}
 STR_CONFIG_SETTING_TRAIN_SPEED_ADAPTATION_HELPTEXT              :当开启后，较快的列车会在经过信号时调整速度以与前方较慢列车的速度相匹配。{}“速度调整”功能可能不适用于部分信号设置风格；此功能可以使用信号“寻路限制”功能针对特定列车手动启用或禁用
 
+STR_CONFIG_SETTING_RV_TRANSPORT_REQUIRE_OVERSIZED               :装载道路载具需要“超大件”货物类别：{STRING}
+STR_CONFIG_SETTING_RV_TRANSPORT_REQUIRE_OVERSIZED_HELPTEXT      :开启后，只有当前货物属于“超大件（oversized）”类别的车厢/货舱才能装载道路载具。{}关闭后，任何具备载货容量的车厢/货舱都可以装载道路载具（原版内容没有超大件货物，因此不使用运车类 NewGRF 时需要关闭此选项才能测试）。
+
 STR_CONFIG_SETTING_SLOW_ROAD_VEHICLES_IN_CURVES                 :道路车辆在转弯处减速：{STRING}
 STR_CONFIG_SETTING_SLOW_ROAD_VEHICLES_IN_CURVES_HELPTEXT        :当开启后，道路车辆将在转弯处减速（仅当真实加速开启时启用）
 

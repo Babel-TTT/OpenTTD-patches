@@ -578,6 +578,9 @@ STR_CONFIG_SETTING_SHARING_ORDERS_TO_OTHERS                     :Can't change th
 STR_CONFIG_SETTING_TRAIN_SPEED_ADAPTATION                       :Enable train speed adaptation: {STRING2}
 STR_CONFIG_SETTING_TRAIN_SPEED_ADAPTATION_HELPTEXT              :When enabled, faster trains adjust their speed when passing signals to attempt to match slower trains in front.{}This may not be appropriate for some signalling styles or layouts, and can be disabled and re-enabled on a per-train basis using signal routing restrictions.
 
+STR_CONFIG_SETTING_RV_TRANSPORT_REQUIRE_OVERSIZED               :Carrying road vehicles requires 'oversized' cargo class: {STRING2}
+STR_CONFIG_SETTING_RV_TRANSPORT_REQUIRE_OVERSIZED_HELPTEXT      :When enabled, only carrier parts whose current cargo belongs to the 'oversized' cargo class can carry road vehicles.{}Disable this to allow any vehicle part with cargo capacity to carry road vehicles (the default game content has no oversized cargo, so this must be disabled to test the feature without a suitable NewGRF).
+
 STR_CONFIG_SETTING_SLOW_ROAD_VEHICLES_IN_CURVES                 :Road vehicles slow down in curves: {STRING2}
 STR_CONFIG_SETTING_SLOW_ROAD_VEHICLES_IN_CURVES_HELPTEXT        :When enabled, road vehicles slow down in curves. (Only with realistic acceleration)
 

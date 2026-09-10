@@ -1106,6 +1106,19 @@ public:
 	bool HasDepotOrder() const;
 	void HandlePathfindingResult(bool path_found);
 
+	/** Bit in #rv_transport_flags: this road vehicle is carried by another vehicle (RoRo). */
+	static constexpr uint8_t RV_TRANSPORT_CARRIED = 1 << 1;
+
+	/**
+	 * Check if this vehicle is excluded from most game systems: template/virtual
+	 * vehicles and road vehicles which are currently carried by another vehicle.
+	 * @return True if the vehicle should not take part in normal game systems.
+	 */
+	inline bool IsVirtualOrCarried() const
+	{
+		return HasBit(this->subtype, GVSF_VIRTUAL) || (this->rv_transport_flags & RV_TRANSPORT_CARRIED) != 0;
+	}
+
 	/**
 	 * Check if the vehicle is a front engine.
 	 * @return Returns true if the vehicle is a front engine.

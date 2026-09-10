@@ -86,7 +86,7 @@ static bool VehiclePositionIsAllowed(const Vehicle *v, Owner owner = INVALID_OWN
 {
 	switch (v->type) {
 		case VehicleType::Train:
-			if (HasBit(Train::From(v)->subtype, GVSF_VIRTUAL)) return true;
+			if (Train::From(v)->IsVirtualOrCarried()) return true;
 			for (const Vehicle *u = v; u != nullptr; u = u->Next()) {
 				if (!IsValidTile(u->tile)) continue;
 				if (!IsInfraTileUsageAllowed(VehicleType::Train, v->owner, u->tile) || GetTileOwner(u->tile) == owner) return false;
@@ -189,7 +189,7 @@ static void FixAllReservations()
 	/* if this function is called, we can safely assume that sharing of rails is being switched off */
 	assert(!IsInfrastructureSharingEnabled(VehicleType::Train));
 	for (Train *v : Train::IterateFrontOnly()) {
-		if (!v->IsPrimaryVehicle() || v->vehstatus.Test(VehState::Crashed) || HasBit(v->subtype, GVSF_VIRTUAL)) continue;
+		if (!v->IsPrimaryVehicle() || v->vehstatus.Test(VehState::Crashed) || v->IsVirtualOrCarried()) continue;
 		/* It might happen that the train reserved additional tracks,
 		 * but FollowTrainReservation can't detect those because they are no longer reachable.
 		 * detect this by first finding the end of the reservation,
@@ -237,7 +237,7 @@ bool CheckSharingChangePossible(VehicleType type, bool new_value)
 
 	StringID error_message = STR_NULL;
 	for (Vehicle *v : Vehicle::IterateTypeFrontOnly(type)) {
-		if (HasBit(v->subtype, GVSF_VIRTUAL)) continue;
+		if (v->IsVirtualOrCarried()) continue;
 
 		/* Check vehicle positiion */
 		if (!VehiclePositionIsAllowed(v)) {
@@ -262,7 +262,7 @@ bool CheckSharingChangePossible(VehicleType type, bool new_value)
 
 	if (type == VehicleType::Train && _settings_game.vehicle.train_braking_model == TBM_REALISTIC) {
 		for (Train *v : Train::IterateFrontOnly()) {
-			if (!v->IsPrimaryVehicle() || v->vehstatus.Test(VehState::Crashed) || HasBit(v->subtype, GVSF_VIRTUAL)) continue;
+			if (!v->IsPrimaryVehicle() || v->vehstatus.Test(VehState::Crashed) || v->IsVirtualOrCarried()) continue;
 			/* It might happen that the train reserved additional tracks,
 			 * but FollowTrainReservation can't detect those because they are no longer reachable.
 			 * detect this by first finding the end of the reservation,

@@ -421,7 +421,7 @@ uint Vehicle::Crash(bool)
  */
 void Vehicle::UpdateIsDrawn()
 {
-	bool drawn = !(HasBit(this->subtype, GVSF_VIRTUAL)) && (!this->vehstatus.Test(VehState::Hidden) ||
+	bool drawn = !(this->IsVirtualOrCarried()) && (!this->vehstatus.Test(VehState::Hidden) ||
 			(IsTransparencySet(TransparencyOption::Tunnels) &&
 				((this->type == VehicleType::Train && Train::From(this)->track == TRACK_BIT_WORMHOLE) ||
 				(this->type == VehicleType::Road && RoadVehicle::From(this)->state == RVSB_WORMHOLE))));
@@ -1037,7 +1037,7 @@ uint CountVehiclesInChain(const Vehicle *v)
  */
 bool Vehicle::IsEngineCountable() const
 {
-	if (HasBit(this->subtype, GVSF_VIRTUAL)) return false;
+	if (this->IsVirtualOrCarried()) return false;
 	switch (this->type) {
 		case VehicleType::Aircraft: return Aircraft::From(this)->IsNormalAircraft(); // don't count plane shadows and helicopter rotors
 		case VehicleType::Train:
@@ -1330,6 +1330,9 @@ static void RunVehicleDayProc()
 		v = Vehicle::Get(i);
 		if (v == nullptr) continue;
 
+		/* RoRo: a carried road vehicle is frozen: no ageing, depreciation or running costs. */
+		if ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) != 0) continue;
+
 		/* Call the 32-day callback if needed */
 		if ((v->day_counter & 0x1F) == 0 && v->HasEngineType() && (Engine::Get(v->engine_type)->callbacks_used & SGCU_VEHICLE_32DAY_CALLBACK) != 0) {
 			uint16_t callback = GetVehicleCallback(CBID_VEHICLE_32DAY_CALLBACK, 0, 0, v->engine_type, v);
@@ -1489,7 +1492,8 @@ void RebuildVehicleTickCaches()
 				break;
 
 			case VehicleType::Road:
-				if (is_front) _tick_road_veh_front_cache.push_back(RoadVehicle::From(v));
+				/* RoRo: carried road vehicles do not tick at all. */
+				if (is_front && !v->IsVirtualOrCarried()) _tick_road_veh_front_cache.push_back(RoadVehicle::From(v));
 				break;
 
 			case VehicleType::Aircraft:
@@ -2534,7 +2538,7 @@ bool Vehicle::HandleBreakdown()
 void EconomyAgeVehicle(Vehicle *v)
 {
 	/* Stop if a virtual vehicle */
-	if (HasBit(v->subtype, GVSF_VIRTUAL)) return;
+	if (v->IsVirtualOrCarried()) return;
 
 	if (v->economy_age < EconTime::MAX_DATE.AsDelta()) {
 		v->economy_age++;
@@ -2549,7 +2553,7 @@ void EconomyAgeVehicle(Vehicle *v)
 void AgeVehicle(Vehicle *v)
 {
 	/* Stop if a virtual vehicle */
-	if (HasBit(v->subtype, GVSF_VIRTUAL)) return;
+	if (v->IsVirtualOrCarried()) return;
 
 	if (v->age < CalTime::MAX_DATE.AsDelta()) v->age++;
 

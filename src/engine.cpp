@@ -1011,7 +1011,7 @@ static CompanyID GetPreviewCompany(Engine *e)
 
 			/* Check whether the company uses similar vehicles */
 			for (const Vehicle *v : Vehicle::IterateType(e->type)) {
-				if (v->owner != c->index || HasBit(v->subtype, GVSF_VIRTUAL)) continue;
+				if (v->owner != c->index || v->IsVirtualOrCarried()) continue;
 				if (!v->GetEngine()->CanCarryCargo() || !cargomask.Test(v->cargo_type)) continue;
 
 				best_hist = c->old_economy[0].performance_history;

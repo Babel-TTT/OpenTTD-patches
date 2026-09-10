@@ -3190,7 +3190,7 @@ void CheckOrders(const Vehicle *v)
 
 	/* Only check every 20 days, so that we don't flood the message log */
 	/* The check is skipped entirely in case the current vehicle is virtual (a.k.a a 'template train') */
-	if (v->owner == _local_company && v->day_counter % 20 == 0 && !HasBit(v->subtype, GVSF_VIRTUAL)) {
+	if (v->owner == _local_company && v->day_counter % 20 == 0 && !v->IsVirtualOrCarried()) {
 		StringID message = INVALID_STRING_ID;
 
 		/* Check the order list */
