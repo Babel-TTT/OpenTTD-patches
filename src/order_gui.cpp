@@ -573,6 +573,24 @@ static const StringID _order_full_load_dropdown[] = {
 	STR_ORDER_DROP_RV_MATCH_DEST,
 };
 
+/**
+ * Same dropdown for a road vehicle's own orders: the two road vehicle transport entries mean
+ * "wait here to be transported" and "be unloaded here" from the road vehicle's point of view.
+ * The destination-match entry does not apply and stays empty.
+ */
+static const StringID _order_full_load_dropdown_rv[] = {
+	STR_ORDER_DROP_LOAD_IF_POSSIBLE,
+	STR_EMPTY,
+	STR_ORDER_DROP_FULL_LOAD_ALL,
+	STR_ORDER_DROP_FULL_LOAD_ANY,
+	STR_ORDER_DROP_NO_LOADING,
+	STR_EMPTY,
+	STR_ORDER_DROP_CARGO_TYPE_LOAD,
+	STR_ORDER_DROP_WAIT_TO_BE_TRANSPORTED,
+	STR_ORDER_DROP_BE_UNLOADED_HERE,
+	STR_EMPTY,
+};
+
 /** Dropdown indices of the road vehicle transport (RoRo) entries in _order_full_load_dropdown. */
 static const int ODDI_RV_TRANSPORT_LOAD = 7;
 static const int ODDI_RV_TRANSPORT_UNLOAD = 8;
@@ -3198,9 +3216,11 @@ public:
 					this->OrderClick_FullLoad(OrderLoadType::FullLoadAny, true);
 				} else {
 					const Order *lo = this->vehicle->GetOrder(this->OrderGetSel());
+					const bool is_rv = (this->vehicle->type == VehicleType::Road);
 					int sel = (lo != nullptr) ? to_underlying(lo->GetLoadType()) : 0;
+					uint32_t hidden = 0x22; // 010 0010
 					if (lo != nullptr) {
-						if ((lo->GetRVTransportFlags() & ORVTF_MATCH_DEST) != 0) {
+						if ((lo->GetRVTransportFlags() & ORVTF_MATCH_DEST) != 0 && !is_rv) {
 							sel = ODDI_RV_MATCH_DEST;
 						} else if ((lo->GetRVTransportFlags() & ORVTF_LOAD) != 0) {
 							sel = ODDI_RV_TRANSPORT_LOAD;
@@ -3208,12 +3228,18 @@ public:
 							sel = ODDI_RV_TRANSPORT_UNLOAD;
 						}
 					}
-					uint32_t hidden = 0x22; // 010 0010
 					if (lo == nullptr || !lo->IsType(OT_GOTO_STATION)) {
 						/* RoRo entries are only meaningful for station orders. */
 						hidden |= (1u << ODDI_RV_TRANSPORT_LOAD) | (1u << ODDI_RV_TRANSPORT_UNLOAD) | (1u << ODDI_RV_MATCH_DEST);
+					} else if (is_rv) {
+						/* From a road vehicle's point of view the destination match entry is not applicable. */
+						hidden |= (1u << ODDI_RV_MATCH_DEST);
 					}
-					ShowDropDownMenu(this, _order_full_load_dropdown, sel, WID_O_FULL_LOAD, 0, hidden, 0, DDSF_SHARED);
+					if (is_rv) {
+						ShowDropDownMenu(this, _order_full_load_dropdown_rv, sel, WID_O_FULL_LOAD, 0, hidden, 0, DDSF_SHARED);
+					} else {
+						ShowDropDownMenu(this, _order_full_load_dropdown, sel, WID_O_FULL_LOAD, 0, hidden, 0, DDSF_SHARED);
+					}
 				}
 				break;
 
