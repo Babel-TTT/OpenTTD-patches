@@ -4563,6 +4563,8 @@ STR_VEHICLE_STATUS_LOADING_UNLOADING                            :{LTBLUE}Loading
 STR_VEHICLE_STATUS_LEAVING                                      :{LTBLUE}Leaving
 STR_VEHICLE_STATUS_WAITING_UNBUNCHING                           :{LTBLUE}Waiting to unbunch
 STR_VEHICLE_STATUS_CRASHED                                      :{RED}Crashed!
+STR_VEHICLE_STATUS_WAITING_TO_BE_TRANSPORTED                    :{LTBLUE}Waiting to be transported
+STR_VEHICLE_STATUS_BEING_TRANSPORTED                            :{LTBLUE}Being transported
 STR_VEHICLE_STATUS_BROKEN_DOWN                                  :{RED}Broken down
 STR_VEHICLE_STATUS_STOPPED                                      :{RED}Stopped
 STR_VEHICLE_STATUS_TRAIN_STOPPING_VEL                           :{RED}{VELOCITY} - Stopping

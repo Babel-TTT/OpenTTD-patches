@@ -18,6 +18,7 @@
 #include "newgrf_text.h"
 #include "newgrf_debug.h"
 #include "roadveh.h"
+#include "roadveh_transport.h"
 #include "train.h"
 #include "train_cmd.h"
 #include "aircraft.h"
@@ -4224,6 +4225,18 @@ public:
 		auto append_args = [&](StringID str, std::span<StringParameter> args) {
 			AppendStringWithArgsInPlace(buffer, AdjustVehicleViewVelocityStringID(str), args);
 		};
+
+		/* RoRo: road vehicles taking part in road vehicle transport show their state. */
+		if ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) != 0) {
+			AppendStringInPlace(buffer, STR_VEHICLE_STATUS_BEING_TRANSPORTED);
+			show_order_number();
+			return buffer.to_string();
+		}
+		if ((v->rv_transport_flags & RVTF_WAITING) != 0) {
+			AppendStringInPlace(buffer, STR_VEHICLE_STATUS_WAITING_TO_BE_TRANSPORTED);
+			show_order_number();
+			return buffer.to_string();
+		}
 
 		if (v->vehstatus.Test(VehState::Crashed)) {
 			AppendStringInPlace(buffer, STR_VEHICLE_STATUS_CRASHED);

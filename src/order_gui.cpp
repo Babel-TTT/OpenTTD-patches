@@ -3805,7 +3805,12 @@ public:
 						uint8_t flags = o->GetRVTransportFlags();
 						const uint8_t bit = (index == ODDI_RV_TRANSPORT_LOAD) ? ORVTF_LOAD :
 								((index == ODDI_RV_TRANSPORT_UNLOAD) ? ORVTF_UNLOAD : ORVTF_MATCH_DEST);
-						flags = ((flags & bit) != 0) ? (flags & ~bit) : (flags | bit);
+						const bool enabling = (flags & bit) == 0;
+						flags = enabling ? (flags | bit) : (flags & ~bit);
+						/* RoRo: when loading road vehicles is enabled, default to only taking vehicles
+						 * whose declared destination is the carrier's next stop (can be switched off again
+						 * with the 'Only road vehicles for the next stop' entry). */
+						if (enabling && bit == ORVTF_LOAD) flags |= ORVTF_MATCH_DEST;
 						this->ModifyOrder(sel, MOF_RV_TRANSPORT, flags);
 					}
 					break;
