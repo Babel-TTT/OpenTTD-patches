@@ -303,6 +303,13 @@ public:
 	uint8_t breakdown_chance_factor = 0;         ///< Improved breakdowns: current multiplier for breakdown_chance * 128, used for head vehicle only
 	Owner owner = INVALID_OWNER;                 ///< Which company owns the vehicle?
 
+	/* Road vehicle transport (RoRo): this road vehicle is carried by another vehicle (train/ship/aircraft). */
+	uint8_t rv_transport_flags = 0;                          ///< RoRo: bit0 = waiting to be transported, bit1 = being transported
+	VehicleID transported_by = VehicleID::Invalid();         ///< RoRo: host carrier front vehicle, valid when bit1 of #rv_transport_flags is set
+	VehicleID transported_host_part = VehicleID::Invalid();  ///< RoRo: host part (wagon/ship part/aircraft body) this vehicle occupies
+	uint16_t transported_weight = 0;                         ///< RoRo: weight in tonnes this vehicle occupies on the host part
+	uint32_t transport_wait_tick = 0;                        ///< RoRo: tick when this vehicle started waiting to be transported
+
 	SpriteID colourmap{};                        ///< NOSAVE: cached colour mapping
 
 	/* Related to age and service time */

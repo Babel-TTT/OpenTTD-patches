@@ -207,6 +207,8 @@ enum SlXvFeatureIndex {
 	XSLFI_JOKERPP,                                ///< This is a JokerPP game, use this for loading some settings
 	XSLFI_CHILLPP,                                ///< This is a ChillPP game, use this for loading some settings
 
+	XSLFI_ROAD_VEH_TRANSPORT,                     ///< Road vehicles transported by other vehicles (RoRo)
+
 	XSLFI_SIZE,                                   ///< Total count of features, including null feature
 };
 
