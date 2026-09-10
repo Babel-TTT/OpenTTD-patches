@@ -51,6 +51,8 @@
 #include "aircraft.h"
 #include "airport.h"
 #include "station_base.h"
+#include "roadveh_transport.h"
+#include "vehicle_base.h"
 #include "waypoint_base.h"
 #include "waypoint_func.h"
 #include "economy_func.h"
@@ -4440,6 +4442,121 @@ static bool ConDumpInfo(std::span<std::string_view> argv)
 	return false;
 }
 
+/**
+ * Debug and self-test command for the road vehicle transport (RoRo) feature.
+ */
+static bool ConRVTransport(std::span<std::string_view> argv)
+{
+	auto get_veh = [](std::string_view s) -> Vehicle * {
+		return Vehicle::GetIfValid(ParseType<VehicleID>(s).value_or(VehicleID::Invalid()));
+	};
+
+	if (argv.size() < 2) {
+		IConsolePrint(CC_HELP, "Road vehicle transport (RoRo) debug command. Usage:");
+		IConsolePrint(CC_HELP, "  rvtransport state <vehicle_id>");
+		IConsolePrint(CC_HELP, "  rvtransport wait <vehicle_id> on|off");
+		IConsolePrint(CC_HELP, "  rvtransport attach <carrier_id> <rv_id> [force]");
+		IConsolePrint(CC_HELP, "  rvtransport detach <carrier_id> <station_id>");
+		IConsolePrint(CC_HELP, "  rvtransport selftest");
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "state")) {
+		if (argv.size() != 3) return false;
+		Vehicle *v = get_veh(argv[2]);
+		if (v == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		IConsolePrint(CC_DEFAULT, "vehicle #{}: type={} flags={} tile={} hidden={} stopped={} by={} part={} weight={} waiting_tick={}",
+				v->index.base(), (int)v->type, v->rv_transport_flags, v->tile.base(),
+				v->vehstatus.Test(VehState::Hidden), v->vehstatus.Test(VehState::Stopped),
+				v->transported_by.base(), v->transported_host_part.base(), v->transported_weight, v->transport_wait_tick);
+		if (v->type == VehicleType::Road) {
+			IConsolePrint(CC_DEFAULT, "  weights: unladen={}t on_board={}", RVTransportGetVehicleWeightTonnes(v), RVTransportCountOnCarrier(v));
+		}
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "wait")) {
+		if (argv.size() != 4) return false;
+		Vehicle *v = get_veh(argv[2]);
+		if (v == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		const bool on = StrEqualsIgnoreCase(argv[3], "on");
+		RVTransportSetWaiting(v, on);
+		IConsolePrint(CC_DEFAULT, "vehicle #{} waiting={} flags={}", v->index.base(), on, v->rv_transport_flags);
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "attach")) {
+		if (argv.size() < 4) return false;
+		Vehicle *carrier = get_veh(argv[2]);
+		Vehicle *rv = get_veh(argv[3]);
+		const bool force = argv.size() > 4 && StrEqualsIgnoreCase(argv[4], "force");
+		if (carrier == nullptr || rv == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		carrier = carrier->First();
+		const bool ok = RVTransportAttachAuto(carrier, rv, force);
+		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "attach: {} (on board={}, flags={}, hidden={})",
+				ok ? "ok" : "failed", RVTransportCountOnCarrier(carrier), rv->rv_transport_flags, rv->vehstatus.Test(VehState::Hidden));
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "detach")) {
+		if (argv.size() != 4) return false;
+		Vehicle *carrier = get_veh(argv[2]);
+		Station *st = Station::GetIfValid(ParseType<StationID>(argv[3]).value_or(StationID::Invalid()));
+		if (carrier == nullptr || st == nullptr) { IConsolePrint(CC_ERROR, "vehicle or station not found"); return true; }
+		carrier = carrier->First();
+		const bool ok = RVTransportDetachAtStation(carrier, st);
+		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "detach: {} (on board={})", ok ? "ok" : "failed", RVTransportCountOnCarrier(carrier));
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "selftest")) {
+		Vehicle *rv = nullptr;
+		for (Vehicle *v : Vehicle::Iterate()) {
+			if (v->type == VehicleType::Road && v->IsFrontEngine() && v->Next() == nullptr) { rv = v; break; }
+		}
+		Vehicle *carrier = nullptr;
+		for (Vehicle *v : Vehicle::Iterate()) {
+			if (v->type == VehicleType::Train && v->IsFrontEngine()) { carrier = v; break; }
+		}
+		if (rv == nullptr || carrier == nullptr) {
+			IConsolePrint(CC_ERROR, "SELFTEST FAIL: map needs at least one road vehicle (found={}) and one train (found={})",
+					rv != nullptr, carrier != nullptr);
+			return true;
+		}
+		IConsolePrint(CC_DEFAULT, "selftest: rv #{} weight={}t, carrier #{}", rv->index.base(), RVTransportGetVehicleWeightTonnes(rv), carrier->index.base());
+
+		RVTransportSetWaiting(rv, true);
+		if (!RVTransportAttachAuto(carrier, rv, true)) {
+			IConsolePrint(CC_ERROR, "SELFTEST FAIL: attach failed");
+			return true;
+		}
+		const bool carried = (rv->rv_transport_flags & RVTF_TRANSPORTED) != 0;
+		const bool hidden = rv->vehstatus.Test(VehState::Hidden);
+		IConsolePrint(CC_DEFAULT, "selftest: attached: carried={} hidden={} on_board={} part={} weight={}",
+				carried, hidden, RVTransportCountOnCarrier(carrier), rv->transported_host_part.base(), rv->transported_weight);
+
+		Station *target = nullptr;
+		for (Station *st : Station::Iterate()) {
+			if (st->facilities.Test(StationFacility::TruckStop) || st->facilities.Test(StationFacility::BusStop)) { target = st; break; }
+		}
+		if (target == nullptr) {
+			IConsolePrint(CC_ERROR, "SELFTEST FAIL: no station with a road stop on the map");
+			return true;
+		}
+		if (!RVTransportDetachAtStation(carrier, target)) {
+			IConsolePrint(CC_ERROR, "SELFTEST FAIL: detach failed at station #{} (no free road stop tile)", target->index.base());
+			return true;
+		}
+		const bool restored = (rv->rv_transport_flags & RVTF_TRANSPORTED) == 0 && !rv->vehstatus.Test(VehState::Hidden) && rv->tile != INVALID_TILE;
+		IConsolePrint(CC_DEFAULT, "selftest: detached: flags={} tile={} hidden={} on_board={}",
+				rv->rv_transport_flags, rv->tile.base(), rv->vehstatus.Test(VehState::Hidden), RVTransportCountOnCarrier(carrier));
+		IConsolePrint(restored ? CC_DEFAULT : CC_ERROR, "SELFTEST: {}", restored ? "PASS" : "FAIL");
+		return true;
+	}
+
+	return false;
+}
+
 /** Console command registration. */
 void IConsoleStdLibRegister()
 {
@@ -4494,6 +4611,7 @@ void IConsoleStdLibRegister()
 	IConsole::CmdRegister("gamelog",                 ConGamelogPrint);
 	IConsole::CmdRegister("rescan_newgrf",           ConRescanNewGRF);
 	IConsole::CmdRegister("list_dirs",               ConListDirs);
+	IConsole::CmdRegister("rvtransport",             ConRVTransport);
 
 	IConsole::AliasRegister("dir",                   "ls");
 	IConsole::AliasRegister("del",                   "rm %+");

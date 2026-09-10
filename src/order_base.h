@@ -96,6 +96,7 @@ struct OrderExtraInfo {
 	uint16_t dispatch_index = 0;              ///< Scheduled dispatch index + 1
 	uint8_t xflags = 0;                       ///< Extra flags
 	uint8_t colour = 0;                       ///< Order colour + 1
+	uint8_t rv_transport_flags = 0;           ///< Road vehicle transport (RoRo): load/unload flags for this station order.
 };
 
 namespace upstream_sl {
@@ -188,6 +189,19 @@ public:
 	inline void SetXDataHigh(uint16_t data)
 	{
 		SB(this->GetXDataRef(), 16, 16, data);
+	}
+
+	/** Road vehicle transport (RoRo): get load/unload flags of this station order. */
+	inline uint8_t GetRVTransportFlags() const
+	{
+		return this->extra != nullptr ? this->extra->rv_transport_flags : 0;
+	}
+
+	/** Road vehicle transport (RoRo): writable reference to load/unload flags. */
+	inline uint8_t &GetRVTransportFlagsRef()
+	{
+		this->CheckExtraInfoAlloced();
+		return this->extra->rv_transport_flags;
 	}
 
 	inline uint32_t GetXData2() const
