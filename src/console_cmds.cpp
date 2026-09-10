@@ -51,6 +51,7 @@
 #include "aircraft.h"
 #include "airport.h"
 #include "station_base.h"
+#include "order_cmd.h"
 #include "roadveh_transport.h"
 #include "vehicle_base.h"
 #include "waypoint_base.h"
@@ -4456,6 +4457,7 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		IConsolePrint(CC_HELP, "  rvtransport list");
 		IConsolePrint(CC_HELP, "  rvtransport wait <vehicle_id> on|off");
 		IConsolePrint(CC_HELP, "  rvtransport orderflag <vehicle_id> load|unload");
+		IConsolePrint(CC_HELP, "  rvtransport modify <vehicle_id> <order_index> load|unload|dest   (uses the real order-modify command)");
 		IConsolePrint(CC_HELP, "  rvtransport attach <carrier_id> <rv_id> [force]");
 		IConsolePrint(CC_HELP, "  rvtransport detach <carrier_id> <station_id>");
 		IConsolePrint(CC_HELP, "  rvtransport selftest");
@@ -4521,6 +4523,27 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		if (o != nullptr) o->GetRVTransportFlagsRef() |= bit;
 		IConsolePrint(CC_DEFAULT, "orderflag: vehicle #{} flags={} (order list entry updated={})",
 				v->index.base(), v->current_order.GetRVTransportFlags(), o != nullptr);
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "modify")) {
+		if (argv.size() != 5) return false;
+		Vehicle *v = get_veh(argv[2]);
+		if (v == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		const VehicleOrderID order_index = ParseType<VehicleOrderID>(argv[3]).value_or(INVALID_VEH_ORDER_ID);
+		if (order_index == INVALID_VEH_ORDER_ID) { IConsolePrint(CC_ERROR, "invalid order index"); return true; }
+		uint8_t bit = 0;
+		if (StrEqualsIgnoreCase(argv[4], "load")) bit = ORVTF_LOAD;
+		else if (StrEqualsIgnoreCase(argv[4], "unload")) bit = ORVTF_UNLOAD;
+		else if (StrEqualsIgnoreCase(argv[4], "dest")) bit = ORVTF_MATCH_DEST;
+		else { IConsolePrint(CC_ERROR, "flag must be 'load', 'unload' or 'dest'"); return true; }
+		const Order *o = v->GetOrder(order_index);
+		if (o == nullptr) { IConsolePrint(CC_ERROR, "order {} not found (vehicle has {} orders)", order_index, v->GetNumOrders()); return true; }
+		uint8_t nflags = o->GetRVTransportFlags();
+		nflags = ((nflags & bit) != 0) ? (nflags & ~bit) : (nflags | bit);
+		const bool ok = Command<Commands::ModifyOrder>::Post(STR_ERROR_CAN_T_MODIFY_THIS_ORDER, v->tile, v->index, order_index, MOF_RV_TRANSPORT, nflags, {}, {});
+		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "modify: {} (vehicle #{}, order {}, station order {}, flags -> {})",
+				ok ? "OK" : "FAILED", v->index.base(), order_index, o->IsType(OT_GOTO_STATION), nflags);
 		return true;
 	}
 
