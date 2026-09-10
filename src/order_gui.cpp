@@ -3208,7 +3208,12 @@ public:
 							sel = ODDI_RV_TRANSPORT_UNLOAD;
 						}
 					}
-					ShowDropDownMenu(this, _order_full_load_dropdown, sel, WID_O_FULL_LOAD, 0, 0x22 /* 010 0010 */, 0, DDSF_SHARED);
+					uint32_t hidden = 0x22; // 010 0010
+					if (lo == nullptr || !lo->IsType(OT_GOTO_STATION)) {
+						/* RoRo entries are only meaningful for station orders. */
+						hidden |= (1u << ODDI_RV_TRANSPORT_LOAD) | (1u << ODDI_RV_TRANSPORT_UNLOAD) | (1u << ODDI_RV_MATCH_DEST);
+					}
+					ShowDropDownMenu(this, _order_full_load_dropdown, sel, WID_O_FULL_LOAD, 0, hidden, 0, DDSF_SHARED);
 				}
 				break;
 
