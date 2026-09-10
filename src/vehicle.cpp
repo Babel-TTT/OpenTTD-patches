@@ -32,6 +32,7 @@
 #include "autoreplace_func.h"
 #include "autoreplace_gui.h"
 #include "station_base.h"
+#include "roadveh_transport.h"
 #include "ai/ai.hpp"
 #include "depot_func.h"
 #include "network/network.h"
@@ -3532,6 +3533,11 @@ void Vehicle::BeginLoading()
 	Station::Get(this->last_station_visited)->MarkTilesDirty(true);
 	this->cur_speed = 0;
 	this->MarkDirty();
+
+	/* RoRo: a road vehicle whose order says "wait to be transported" stops here and waits. */
+	if (this->type == VehicleType::Road && (this->current_order.GetRVTransportFlags() & ORVTF_LOAD) != 0) {
+		RVTransportSetWaiting(this, true);
+	}
 }
 
 /**

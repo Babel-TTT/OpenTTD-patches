@@ -39,6 +39,7 @@
 #include "subsidy_base.h"
 #include "subsidy_func.h"
 #include "station_base.h"
+#include "roadveh_transport.h"
 #include "waypoint_base.h"
 #include "economy_base.h"
 #include "core/pool_func.hpp"
@@ -2017,6 +2018,27 @@ static void LoadUnloadVehicle(Vehicle *front)
 
 	/* We have not waited enough time till the next round of loading/unloading */
 	if (front->load_unload_ticks != 0) return;
+
+	/* RoRo: a road vehicle waiting to be transported does not load/unload normal cargo. */
+	if (front->type == VehicleType::Road && (front->rv_transport_flags & RVTF_WAITING) != 0) {
+		front->load_unload_ticks = 1;
+		return;
+	}
+
+	/* RoRo: a carrier loads/unloads road vehicles according to its order parameter block. */
+	if (front->type != VehicleType::Road) {
+		const uint8_t rv_order_flags = front->current_order.GetRVTransportFlags();
+		if ((rv_order_flags & ORVTF_UNLOAD) != 0) {
+			RVTransportDetachAtStation(front, st);
+		}
+		if ((rv_order_flags & ORVTF_LOAD) != 0) {
+			for (int i = 0; i < 8; i++) {
+				Vehicle *waiting = RVTransportFindWaitingAtStation(st);
+				if (waiting == nullptr) break;
+				if (!RVTransportAttachAuto(front, waiting)) break;
+			}
+		}
+	}
 
 	if (front->type == VehicleType::Train && (!IsTileType(station_tile, TileType::Station) || GetStationIndex(station_tile) != st->index)) {
 		/* The train reversed in the station. Take the "easy" way

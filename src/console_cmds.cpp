@@ -4455,6 +4455,7 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		IConsolePrint(CC_HELP, "Road vehicle transport (RoRo) debug command. Usage:");
 		IConsolePrint(CC_HELP, "  rvtransport state <vehicle_id>");
 		IConsolePrint(CC_HELP, "  rvtransport wait <vehicle_id> on|off");
+		IConsolePrint(CC_HELP, "  rvtransport orderflag <vehicle_id> load|unload");
 		IConsolePrint(CC_HELP, "  rvtransport attach <carrier_id> <rv_id> [force]");
 		IConsolePrint(CC_HELP, "  rvtransport detach <carrier_id> <station_id>");
 		IConsolePrint(CC_HELP, "  rvtransport selftest");
@@ -4482,6 +4483,22 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		const bool on = StrEqualsIgnoreCase(argv[3], "on");
 		RVTransportSetWaiting(v, on);
 		IConsolePrint(CC_DEFAULT, "vehicle #{} waiting={} flags={}", v->index.base(), on, v->rv_transport_flags);
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "orderflag")) {
+		if (argv.size() != 4) return false;
+		Vehicle *v = get_veh(argv[2]);
+		if (v == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		uint8_t bit = 0;
+		if (StrEqualsIgnoreCase(argv[3], "load")) bit = ORVTF_LOAD;
+		else if (StrEqualsIgnoreCase(argv[3], "unload")) bit = ORVTF_UNLOAD;
+		else { IConsolePrint(CC_ERROR, "flag must be 'load' or 'unload'"); return true; }
+		v->current_order.GetRVTransportFlagsRef() |= bit;
+		Order *o = v->GetOrder(v->cur_real_order_index);
+		if (o != nullptr) o->GetRVTransportFlagsRef() |= bit;
+		IConsolePrint(CC_DEFAULT, "orderflag: vehicle #{} flags={} (order list entry updated={})",
+				v->index.base(), v->current_order.GetRVTransportFlags(), o != nullptr);
 		return true;
 	}
 
