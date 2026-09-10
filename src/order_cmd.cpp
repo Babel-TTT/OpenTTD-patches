@@ -449,7 +449,8 @@ void Order::AssignOrder(const Order &other)
 
 	if (other.extra != nullptr && (this->GetUnloadType() == OrderUnloadType::CargoTypeUnload || this->GetLoadType() == OrderLoadType::CargoTypeLoad
 			|| (this->IsType(OT_LABEL) && this->GetLabelSubType() == OLST_TEXT)
-			|| other.extra->xdata != 0 || other.extra->xdata2 != 0 || other.extra->xflags != 0 || other.extra->dispatch_index != 0 || other.extra->colour != 0)) {
+			|| other.extra->xdata != 0 || other.extra->xdata2 != 0 || other.extra->xflags != 0 || other.extra->dispatch_index != 0 || other.extra->colour != 0
+			|| other.extra->rv_transport_flags != 0 || other.extra->rv_transport_max != 0)) {
 		this->AllocExtraInfo();
 		*(this->extra) = *(other.extra);
 	} else {
