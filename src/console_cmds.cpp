@@ -4449,6 +4449,19 @@ static bool ConDumpInfo(std::span<std::string_view> argv)
 static bool ConRVTransport(std::span<std::string_view> argv)
 {
 	auto get_veh = [](std::string_view s) -> Vehicle * {
+		/* Convenience: 'firstrv' / 'firsttrain' pick the first front vehicle of that type. */
+		if (StrEqualsIgnoreCase(s, "firstrv")) {
+			for (Vehicle *v : Vehicle::Iterate()) {
+				if (v->type == VehicleType::Road && v->IsFrontEngine()) return v;
+			}
+			return nullptr;
+		}
+		if (StrEqualsIgnoreCase(s, "firsttrain")) {
+			for (Vehicle *v : Vehicle::Iterate()) {
+				if (v->type == VehicleType::Train && v->IsFrontEngine()) return v;
+			}
+			return nullptr;
+		}
 		return Vehicle::GetIfValid(ParseType<VehicleID>(s).value_or(VehicleID::Invalid()));
 	};
 
@@ -4541,9 +4554,19 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		if (o == nullptr) { IConsolePrint(CC_ERROR, "order {} not found (vehicle has {} orders)", order_index, v->GetNumOrders()); return true; }
 		uint8_t nflags = o->GetRVTransportFlags();
 		nflags = ((nflags & bit) != 0) ? (nflags & ~bit) : (nflags | bit);
-		const bool ok = Command<Commands::ModifyOrder>::Post(STR_ERROR_CAN_T_MODIFY_THIS_ORDER, v->tile, v->index, order_index, MOF_RV_TRANSPORT, nflags, {}, {});
-		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "modify: {} (vehicle #{}, order {}, station order {}, flags -> {})",
-				ok ? "OK" : "FAILED", v->index.base(), order_index, o->IsType(OT_GOTO_STATION), nflags);
+		/* Commands check ownership against the company executing them (_current_company); the GUI also uses
+		 * _local_company. Set both temporarily so this debug command works on a dedicated server too. */
+		const CompanyID old_local_company = _local_company;
+		const CompanyID old_current_company = _current_company;
+		_local_company = v->owner;
+		_current_company = v->owner;
+		const CommandCost res = CmdModifyOrder(DoCommandFlags{DoCommandFlag::Execute}, v->index, order_index, MOF_RV_TRANSPORT, nflags, INVALID_CARGO, std::string{});
+		_current_company = old_current_company;
+		_local_company = old_local_company;
+		const bool ok = res.Succeeded();
+		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "modify: {} (vehicle #{}, order {}, station order {}, flags -> {}), error: {}",
+				ok ? "OK" : "FAILED", v->index.base(), order_index, o->IsType(OT_GOTO_STATION), nflags,
+				res.GetErrorMessage() != INVALID_STRING_ID ? GetString(res.GetErrorMessage()) : std::string("<none>"));
 		return true;
 	}
 
