@@ -570,11 +570,13 @@ static const StringID _order_full_load_dropdown[] = {
 	STR_ORDER_DROP_CARGO_TYPE_LOAD,
 	STR_ORDER_DROP_LOAD_ROAD_VEHICLES,
 	STR_ORDER_DROP_UNLOAD_ROAD_VEHICLES,
+	STR_ORDER_DROP_RV_MATCH_DEST,
 };
 
 /** Dropdown indices of the road vehicle transport (RoRo) entries in _order_full_load_dropdown. */
 static const int ODDI_RV_TRANSPORT_LOAD = 7;
 static const int ODDI_RV_TRANSPORT_UNLOAD = 8;
+static const int ODDI_RV_MATCH_DEST = 9;
 
 static const StringID _order_unload_dropdown[] = {
 	STR_ORDER_DROP_UNLOAD_IF_ACCEPTED,
@@ -3198,7 +3200,9 @@ public:
 					const Order *lo = this->vehicle->GetOrder(this->OrderGetSel());
 					int sel = (lo != nullptr) ? to_underlying(lo->GetLoadType()) : 0;
 					if (lo != nullptr) {
-						if ((lo->GetRVTransportFlags() & ORVTF_LOAD) != 0) {
+						if ((lo->GetRVTransportFlags() & ORVTF_MATCH_DEST) != 0) {
+							sel = ODDI_RV_MATCH_DEST;
+						} else if ((lo->GetRVTransportFlags() & ORVTF_LOAD) != 0) {
 							sel = ODDI_RV_TRANSPORT_LOAD;
 						} else if ((lo->GetRVTransportFlags() & ORVTF_UNLOAD) != 0) {
 							sel = ODDI_RV_TRANSPORT_UNLOAD;
@@ -3732,13 +3736,14 @@ public:
 				break;
 
 			case WID_O_FULL_LOAD:
-				if (index == ODDI_RV_TRANSPORT_LOAD || index == ODDI_RV_TRANSPORT_UNLOAD) {
-					/* RoRo: toggle loading/unloading of road vehicles on this station order. */
+				if (index == ODDI_RV_TRANSPORT_LOAD || index == ODDI_RV_TRANSPORT_UNLOAD || index == ODDI_RV_MATCH_DEST) {
+					/* RoRo: toggle loading/unloading of road vehicles, or the destination match, on this station order. */
 					const VehicleOrderID sel = this->OrderGetSel();
 					const Order *o = this->vehicle->GetOrder(sel);
 					if (o != nullptr) {
 						uint8_t flags = o->GetRVTransportFlags();
-						const uint8_t bit = (index == ODDI_RV_TRANSPORT_LOAD) ? ORVTF_LOAD : ORVTF_UNLOAD;
+						const uint8_t bit = (index == ODDI_RV_TRANSPORT_LOAD) ? ORVTF_LOAD :
+								((index == ODDI_RV_TRANSPORT_UNLOAD) ? ORVTF_UNLOAD : ORVTF_MATCH_DEST);
 						flags = ((flags & bit) != 0) ? (flags & ~bit) : (flags | bit);
 						this->ModifyOrder(sel, MOF_RV_TRANSPORT, flags);
 					}

@@ -11,6 +11,7 @@
 #define ROADVEH_TRANSPORT_H
 
 #include "core/enum_type.hpp"
+#include "station_type.h"
 #include "vehicle_type.h"
 
 class Vehicle;
@@ -23,6 +24,13 @@ static const uint8_t RVTF_TRANSPORTED = 1 << 1; ///< Road vehicle is currently c
 /** Bits stored in OrderExtraInfo::rv_transport_flags. */
 static const uint8_t ORVTF_LOAD   = 1 << 0; ///< This station order loads road vehicles onto the carrier.
 static const uint8_t ORVTF_UNLOAD = 1 << 1; ///< This station order unloads road vehicles from the carrier.
+static const uint8_t ORVTF_MATCH_DEST = 1 << 2; ///< Only load road vehicles whose declared unload station equals the carrier's next stop.
+
+/** Station a road vehicle wants to be unloaded at (from its own "unload road vehicles" order), or invalid. */
+StationID RVTransportGetDeclaredDestination(const Vehicle *rv);
+
+/** Next station the carrier stops at after its current order, or invalid. */
+StationID RVTransportGetNextCarrierStop(const Vehicle *carrier);
 
 /** Weight in tonnes a road vehicle occupies on a carrier (rounded up). */
 uint32_t RVTransportGetVehicleWeightTonnes(const Vehicle *rv);
@@ -48,8 +56,13 @@ bool RVTransportAttachAuto(Vehicle *carrier, Vehicle *rv, bool force = false);
 /** Unload all road vehicles carried by this carrier at the given station. Returns true if anything was unloaded. */
 bool RVTransportDetachAtStation(Vehicle *carrier, Station *st);
 
-/** Find the first road vehicle waiting at this station (carrier is used for company/order checks later). */
-Vehicle *RVTransportFindWaitingAtStation(const Station *st);
+/**
+ * Find the first road vehicle waiting to be transported at this station.
+ * @param st Station to look at.
+ * @param carrier Carrier which wants to load; used for the destination match.
+ * @param match_destination When true, only vehicles whose declared unload station equals the carrier's next stop are considered.
+ */
+Vehicle *RVTransportFindWaitingAtStation(const Station *st, const Vehicle *carrier = nullptr, bool match_destination = false);
 
 /** Number of road vehicles currently carried by this carrier (front vehicle). */
 uint32_t RVTransportCountOnCarrier(const Vehicle *carrier);

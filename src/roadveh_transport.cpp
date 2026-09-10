@@ -16,6 +16,7 @@
 #include "direction_func.h"
 #include "direction_type.h"
 #include "map_func.h"
+#include "order_base.h"
 #include "road_map.h"
 #include "roadveh.h"
 #include "settings_type.h"
@@ -234,15 +235,57 @@ bool RVTransportDetachAtStation(Vehicle *carrier, Station *st)
 	return any;
 }
 
-/** First road vehicle waiting to be transported at this station, or nullptr. */
-Vehicle *RVTransportFindWaitingAtStation(const Station *st)
+/**
+ * Station at which a road vehicle wants to be unloaded, taken from the first of its own
+ * station orders which asks for unloading road vehicles ("declared destination").
+ * @return The station id, or an invalid id when the vehicle declares no destination.
+ */
+StationID RVTransportGetDeclaredDestination(const Vehicle *rv)
+{
+	if (rv == nullptr) return StationID::Invalid();
+	for (const Order *o : rv->Orders()) {
+		if (!o->IsType(OT_GOTO_STATION)) continue;
+		if ((o->GetRVTransportFlags() & ORVTF_UNLOAD) != 0) return o->GetDestination().ToStationID();
+	}
+	return StationID::Invalid();
+}
+
+/**
+ * Next station the carrier stops at after its current order.
+ * @return The station id, or an invalid id when there is none.
+ */
+StationID RVTransportGetNextCarrierStop(const Vehicle *carrier)
+{
+	if (carrier == nullptr || carrier->orders == nullptr) return StationID::Invalid();
+	const OrderList *ol = carrier->orders;
+	const VehicleOrderID num = ol->GetNumOrders();
+	for (VehicleOrderID i = static_cast<VehicleOrderID>(carrier->cur_real_order_index + 1); i < num; i++) {
+		const Order *o = ol->GetOrderAt(i);
+		if (o != nullptr && o->IsType(OT_GOTO_STATION)) return o->GetDestination().ToStationID();
+	}
+	return StationID::Invalid();
+}
+
+/**
+ * First road vehicle waiting to be transported at this station.
+ * @param st Station to look at.
+ * @param carrier Carrier which wants to load; used for the destination match.
+ * @param match_destination When true only road vehicles whose declared unload station equals
+ *        the carrier's next stop are considered; other waiting vehicles are skipped.
+ */
+Vehicle *RVTransportFindWaitingAtStation(const Station *st, const Vehicle *carrier, bool match_destination)
 {
 	if (st == nullptr) return nullptr;
+	const StationID next_stop = match_destination ? RVTransportGetNextCarrierStop(carrier) : StationID::Invalid();
 	for (Vehicle *v : Vehicle::Iterate()) {
 		if ((v->rv_transport_flags & RVTF_WAITING) == 0) continue;
 		if (v->type != VehicleType::Road) continue;
 		if (!v->IsFrontEngine()) continue;
 		if (v->last_station_visited != st->index) continue;
+		if (match_destination) {
+			const StationID dest = RVTransportGetDeclaredDestination(v);
+			if (dest != next_stop) continue; // not for this carrier's next stop: skip it
+		}
 		return v;
 	}
 	return nullptr;

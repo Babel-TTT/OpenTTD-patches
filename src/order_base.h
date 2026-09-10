@@ -97,6 +97,7 @@ struct OrderExtraInfo {
 	uint8_t xflags = 0;                       ///< Extra flags
 	uint8_t colour = 0;                       ///< Order colour + 1
 	uint8_t rv_transport_flags = 0;           ///< Road vehicle transport (RoRo): load/unload flags for this station order.
+	uint8_t rv_transport_max = 0;             ///< Road vehicle transport (RoRo): maximum number of road vehicles to load (0 = unlimited).
 };
 
 namespace upstream_sl {

@@ -2032,8 +2032,9 @@ static void LoadUnloadVehicle(Vehicle *front)
 			RVTransportDetachAtStation(front, st);
 		}
 		if ((rv_order_flags & ORVTF_LOAD) != 0) {
+			const bool match_dest = (rv_order_flags & ORVTF_MATCH_DEST) != 0;
 			for (int i = 0; i < 8; i++) {
-				Vehicle *waiting = RVTransportFindWaitingAtStation(st);
+				Vehicle *waiting = RVTransportFindWaitingAtStation(st, front, match_dest);
 				if (waiting == nullptr) break;
 				if (!RVTransportAttachAuto(front, waiting)) break;
 			}
