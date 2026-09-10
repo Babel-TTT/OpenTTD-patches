@@ -56,9 +56,13 @@ Behavioural notes:
   like "Full load"); there is no engine-side timeout, so pair it with a timetable or only enable it
   where vehicles are actually available.
 * **Carriers are trains, ships and aircraft**; a road vehicle cannot carry another road vehicle.
-* **When a carrier is destroyed**, the road vehicles it was carrying are released back onto the map
-  at the carrier's tile (they stay visible and continue their own orders). A carrier holding road
-  vehicles — and a road vehicle being carried — **cannot be sold** until the vehicles are unloaded.
+* **A carried road vehicle stays visible and reachable**: it remains in the vehicle/group lists (its
+  status reads "Being transported"), and "centre on vehicle" / the follow camera look at the
+  **carrier** instead of at the station it was loaded at.
+* **When a carrier is destroyed, the road vehicles it carries are destroyed with it**, like the
+  wagons of a crashed train — they are not left behind on the map. A carrier holding road vehicles —
+  and a road vehicle being carried — **cannot be sold** until the vehicles are unloaded (use
+  `Unload road vehicles` at a station first).
 
 ## Building
 
@@ -100,7 +104,8 @@ version 1) and does **not** bump `SAVEGAME_VERSION`:
 | Loading loop | `src/economy.cpp` (`LoadUnloadVehicle`) | waiting road vehicles skip normal loading; 8 vehicles/tick matched/unloaded per order flags; `ORVTF_WAIT` holds `finished_loading` |
 | Exemptions | `src/vehicle.cpp`, `vehiclelist.cpp`, `group_cmd.cpp`, `economy.cpp`, `infrastructure.cpp`, `network/network_server.cpp`, `disaster_vehicle.cpp`, `engine.cpp`, `industry_cmd.cpp`, `settings_table.cpp`, `order_cmd.cpp` | carried road vehicles behave like virtual vehicles everywhere these loops run |
 | GUI | `src/order_gui.cpp`, `src/vehicle_gui.cpp`, `src/lang/extra/*.txt` | dropdown entries, road-vehicle vs carrier wording, order-row markers, status strings |
-| Destruction | `src/vehicle.cpp` (`PreDestructor`) | a destroyed carrier releases what it carries |
+| Destruction | `src/vehicle.cpp` (`PreDestructor` → `RVTransportDestroyCarriedVehicles`) | a destroyed carrier takes the road vehicles it holds with it |
+| Position/lists | `src/roadveh_transport.cpp` (`RVTransportGetFollowVehicle`), `viewport.cpp`, `window.cpp`, `vehicle_gui.cpp`, `vehiclelist.cpp` | carried road vehicles stay listed and are followed/located at their carrier |
 | Setting | `src/table/settings/game_settings.ini`, `src/settings_type.h` | `vehicle.rv_transport_require_oversized` (default `false` = any cargo capacity may carry) |
 
 ## Developer/debug console commands
@@ -140,7 +145,7 @@ config in `build/roro-test.cfg` and a savegame in `build/save/`; adapt the paths
 | `verify_sim.ps1` | waiting → station scan → load chain on a real map | PASS |
 | `verify_user_save.ps1` | order command chain (`load`/`unload`/`dest`) | PASS |
 | `verify_toggle.ps1` | the order window's flag toggling rules (via `rvtransport toggle`, which calls the same `RVTransportToggleOrderFlag()`) | PASS |
-| `verify_release.ps1` | release path used when a carrier is destroyed | PASS |
+| `verify_release.ps1` | the manual release path (`RVTransportForceRelease`, now a debug/safety net) | PASS |
 | `run_selftest.ps1`, `m1_roundtrip.ps1`, `probe_ai.ps1` | early scaffolding / diagnostics, superseded | disabled |
 
 Note: `delete_vehicle_id` is **not** registered on a dedicated server, so the carrier-destruction

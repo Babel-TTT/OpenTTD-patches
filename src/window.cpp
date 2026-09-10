@@ -43,6 +43,7 @@
 #include "time_chrono.h"
 #include "timer/timer.h"
 #include "timer/timer_window.h"
+#include "roadveh_transport.h"
 
 #include "table/strings.h"
 
@@ -2663,7 +2664,7 @@ static EventState HandleViewportScroll()
 
 	if (_last_scroll_window == GetMainWindow() && _last_scroll_window->viewport->follow_vehicle != VehicleID::Invalid()) {
 		/* If the main window is following a vehicle, then first let go of it! */
-		const Vehicle *veh = Vehicle::Get(_last_scroll_window->viewport->follow_vehicle)->GetMovingFront();
+		const Vehicle *veh = RVTransportGetFollowVehicle(Vehicle::Get(_last_scroll_window->viewport->follow_vehicle))->GetMovingFront();
 		ScrollMainWindowTo(veh->x_pos, veh->y_pos, veh->z_pos, true); // This also resets follow_vehicle
 		return ES_NOT_HANDLED;
 	}

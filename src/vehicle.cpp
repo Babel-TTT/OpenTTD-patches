@@ -1156,15 +1156,9 @@ void Vehicle::PreDestructor()
 
 	SCOPE_INFO_FMT([this], "Vehicle::PreDestructor: {}", VehicleInfoDumper(this));
 
-	/* RoRo: release the road vehicles this vehicle carries, so that they do not keep pointing
-	 * at a vehicle which is being destroyed (e.g. destroyed in a crash). */
-	if (this->IsPrimaryVehicle()) {
-		for (Vehicle *carried : Vehicle::Iterate()) {
-			if ((carried->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) continue;
-			if (carried->transported_by != this->index) continue;
-			RVTransportForceRelease(carried);
-		}
-	}
+	/* RoRo: the road vehicles this vehicle carries are lost together with it, like the wagons of a
+	 * crashed train, so that they do not keep pointing at a vehicle which is being destroyed. */
+	RVTransportDestroyCarriedVehicles(this);
 
 	if (Station::IsValidID(this->last_station_visited)) {
 		Station *st = Station::Get(this->last_station_visited);

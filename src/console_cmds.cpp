@@ -4474,6 +4474,7 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		IConsolePrint(CC_HELP, "  rvtransport attach <carrier_id> <rv_id> [force]");
 		IConsolePrint(CC_HELP, "  rvtransport toggle <vehicle_id> <order_nr> load|unload|dest|wait");
 		IConsolePrint(CC_HELP, "  rvtransport setflags <vehicle_id> <order_nr> <flags>");
+		IConsolePrint(CC_HELP, "  rvtransport destroy <vehicle_id>");
 		IConsolePrint(CC_HELP, "  rvtransport release <rv_id>");
 		IConsolePrint(CC_HELP, "  rvtransport detach <carrier_id> <station_id>");
 		IConsolePrint(CC_HELP, "  rvtransport selftest");
@@ -4627,6 +4628,20 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "setflags: {} (vehicle #{} order {} -> {}), error: {}",
 				ok ? "OK" : "FAILED", v->index.base(), order_index, nflags,
 				res.GetErrorMessage() != INVALID_STRING_ID ? GetString(res.GetErrorMessage()) : std::string("<none>"));
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "destroy")) {
+		/* Destroy a vehicle, to test what happens to the road vehicles it carries. Uses the same
+		 * emergency path as the built-in 'delete_vehicle_id' command, which is registered for
+		 * non-network (GUI) clients only and therefore unavailable on a dedicated server. */
+		if (argv.size() != 3) return false;
+		Vehicle *v = get_veh(argv[2]);
+		if (v == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		const VehicleID id = v->index;
+		extern void ConsoleRemoveVehicle(VehicleID id);
+		ConsoleRemoveVehicle(id);
+		IConsolePrint(CC_DEFAULT, "destroy: vehicle #{} (still present after destroy: {})", id.base(), Vehicle::GetIfValid(id) != nullptr);
 		return true;
 	}
 

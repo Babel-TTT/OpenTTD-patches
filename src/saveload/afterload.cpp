@@ -30,6 +30,7 @@
 #include "../train.h"
 #include "../station_base.h"
 #include "../waypoint_base.h"
+#include "../roadveh_transport.h"
 #include "../roadstop_base.h"
 #include "../tunnelbridge.h"
 #include "../tunnelbridge_map.h"
@@ -310,6 +311,9 @@ static void InitializeWindowsAndCaches()
 	for (RoadVehicle *rv : RoadVehicle::IterateFrontOnly()) {
 		rv->CargoChanged();
 	}
+
+	/* RoRo: make sure no road vehicle is left carried by a carrier which is not there any more. */
+	RVTransportValidateAfterLoad();
 
 	RecomputePrices();
 

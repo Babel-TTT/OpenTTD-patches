@@ -83,6 +83,25 @@ uint32_t RVTransportCountOnCarrier(const Vehicle *carrier);
 Vehicle *RVTransportFindFirstOnCarrier(const Vehicle *carrier);
 
 /**
+ * Vehicle whose position represents this vehicle on the map: a carried road vehicle is where its
+ * carrier is. Used by the camera/viewport follow ("centre on vehicle") and other actions which
+ * need the position of a vehicle.
+ */
+const Vehicle *RVTransportGetFollowVehicle(const Vehicle *v);
+
+/**
+ * Destroy the road vehicles carried by this carrier: they are lost together with it (as when a
+ * train crashes), instead of being left behind on the map.
+ */
+void RVTransportDestroyCarriedVehicles(Vehicle *carrier);
+
+/**
+ * Fix up the carried state of all road vehicles after a savegame was loaded (a road vehicle whose
+ * carrier does not exist any more is put back on the road).
+ */
+void RVTransportValidateAfterLoad();
+
+/**
  * Emergency release of a carried road vehicle, used when its carrier is destroyed: the road
  * vehicle is put back on the road network at its remembered tile and continues on its own.
  */

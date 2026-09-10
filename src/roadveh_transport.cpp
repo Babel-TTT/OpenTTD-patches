@@ -13,11 +13,13 @@
 
 #include "cargotype.h"
 #include "date_func.h"
+#include "debug.h"
 #include "direction_func.h"
 #include "direction_type.h"
 #include "map_func.h"
 #include "order_base.h"
 #include "road_map.h"
+#include "roadstop_base.h"
 #include "roadveh.h"
 #include "settings_type.h"
 #include "station_base.h"
@@ -190,6 +192,16 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 	rv->vehstatus.Set(VehState::Stopped);
 	rv->vehstatus.Set(VehState::Hidden);
 	rv->cur_speed = 0;
+
+	/* The road vehicle leaves the road stop it was loaded at: it is off the map now and must not
+	 * keep a parking bay allocated (nor look like it is parked in a stop, so that destroying it
+	 * while it is carried cannot release the same bay a second time). */
+	if (IsAnyRoadStopTile(rv->tile)) {
+		RoadStop *rs = RoadStop::GetByTile(rv->tile, GetRoadStopType(rv->tile));
+		if (rs != nullptr) rs->Leave(RoadVehicle::From(rv));
+	}
+	RoadVehicle::From(rv)->state = DiagDirToDiagTrackdir(DirToDiagDir(rv->direction));
+
 	UpdateVehicleTileHash(rv, true);   // off the road network (like virtual vehicles)
 	rv->UpdateIsDrawn();
 
@@ -335,9 +347,56 @@ Vehicle *RVTransportFindWaitingAtStation(const Station *st, const Vehicle *carri
 }
 
 /**
+ * Check the carried state of all road vehicles after a savegame was loaded. A road vehicle which
+ * claims to be carried by a vehicle that does not exist any more (or by something which cannot be
+ * a carrier) must not stay hidden and frozen on the map: it is put back on the road, or, if there
+ * is no sane place for it, removed.
+ */
+void RVTransportValidateAfterLoad()
+{
+	std::vector<VehicleID> release;
+	std::vector<VehicleID> remove;
+
+	for (Vehicle *v : Vehicle::Iterate()) {
+		if (v->type != VehicleType::Road) continue;
+
+		if ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) {
+			/* Not carried: drop any stale carrier reference left behind. */
+			v->transported_by = VehicleID::Invalid();
+			v->transported_host_part = VehicleID::Invalid();
+			v->transported_weight = 0;
+			continue;
+		}
+
+		const Vehicle *carrier = Vehicle::GetIfValid(v->transported_by);
+		if (carrier != nullptr && carrier->type != VehicleType::Road && carrier->First() == carrier) continue; // carried as expected
+
+		Debug(misc, 0, "RoRo: road vehicle #{} was carried by missing vehicle #{}", v->index.base(), v->transported_by.base());
+		v->transported_by = VehicleID::Invalid();
+		v->transported_host_part = VehicleID::Invalid();
+		if (IsValidTile(v->tile) && (IsAnyRoadStopTile(v->tile) || IsNormalRoadTile(v->tile))) {
+			release.push_back(v->index);
+		} else {
+			remove.push_back(v->index);
+		}
+	}
+
+	for (const VehicleID id : release) {
+		Vehicle *v = Vehicle::GetIfValid(id);
+		if (v != nullptr) RVTransportForceRelease(v);
+	}
+	for (const VehicleID id : remove) {
+		Vehicle *v = Vehicle::GetIfValid(id);
+		if (v == nullptr) continue;
+		Debug(misc, 0, "RoRo: removing road vehicle #{} which was carried and has no valid tile", id.base());
+		delete v;
+	}
+}
+
+/**
  * Emergency release: put a carried road vehicle back on the road network at its remembered
- * tile. Used when its carrier is destroyed, so that the vehicle does not keep pointing at a
- * deleted carrier. The vehicle keeps its own orders and simply continues on its way.
+ * tile. Kept for the debug console command and as a safety net (e.g. for a vehicle which is
+ * carried by something that no longer exists after loading a savegame).
  */
 void RVTransportForceRelease(Vehicle *rv)
 {
@@ -365,4 +424,48 @@ void RVTransportForceRelease(Vehicle *rv)
 		UpdateVehicleTileHash(rv, false);   // back on the road network
 	}
 	rv->UpdateIsDrawn();
+}
+
+/**
+ * Vehicle whose position represents this vehicle on the map: a carried road vehicle is where its
+ * carrier is, so that "centre on vehicle" and the follow camera look at the carrier instead of at
+ * the station the road vehicle was loaded at.
+ */
+const Vehicle *RVTransportGetFollowVehicle(const Vehicle *v)
+{
+	if (v == nullptr) return nullptr;
+	if ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) return v;
+
+	const Vehicle *carrier = Vehicle::GetIfValid(v->transported_by);
+	if (carrier == nullptr) return v;
+	return carrier->GetMovingFront();
+}
+
+/**
+ * Destroy the road vehicles carried by this carrier: they are lost together with it, exactly like
+ * the wagons of a crashed train, instead of being left behind on the map.
+ */
+void RVTransportDestroyCarriedVehicles(Vehicle *carrier)
+{
+	if (carrier == nullptr) return;
+	if (carrier->type == VehicleType::Road) return; // a road vehicle is never a carrier
+
+	/* Collect first: deleting a vehicle modifies the pool, so it must not happen while iterating. */
+	std::vector<VehicleID> carried;
+	for (const Vehicle *v : Vehicle::Iterate()) {
+		if ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) continue;
+		if (v->transported_by != carrier->index) continue;
+		carried.push_back(v->index);
+	}
+
+	for (const VehicleID id : carried) {
+		Vehicle *v = Vehicle::GetIfValid(id);
+		if (v == nullptr) continue;
+		/* Detach first, so that nothing refers to a vehicle which is about to disappear. */
+		v->rv_transport_flags &= ~Vehicle::RV_TRANSPORT_CARRIED;
+		v->transported_by = VehicleID::Invalid();
+		v->transported_host_part = VehicleID::Invalid();
+		v->transported_weight = 0;
+		delete v;
+	}
 }

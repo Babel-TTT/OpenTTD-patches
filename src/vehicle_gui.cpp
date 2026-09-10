@@ -4445,16 +4445,17 @@ public:
 
 			case WID_VV_LOCATION: // center main view
 				if (_ctrl_pressed) {
-					ShowExtraViewportWindow(TileVirtXY(v->x_pos, v->y_pos));
+					const Vehicle *shown = RVTransportGetFollowVehicle(v);
+					ShowExtraViewportWindow(TileVirtXY(shown->x_pos, shown->y_pos));
 					this->HandleButtonClick(widget);
 				} else {
 					const Window *mainwindow = GetMainWindow();
 					if (click_count > 1 && mainwindow->viewport->zoom < ZoomLevel::DrawMap) {
-						/* main window 'follows' vehicle */
+						/* main window 'follows' vehicle (a carried road vehicle is followed at its carrier) */
 						mainwindow->viewport->follow_vehicle = v->index;
 					} else {
 						if (mainwindow->viewport->follow_vehicle == v->index) mainwindow->viewport->follow_vehicle = VehicleID::Invalid();
-						const Vehicle *moving_front = v->GetMovingFront();
+						const Vehicle *moving_front = RVTransportGetFollowVehicle(v)->GetMovingFront();
 						ScrollMainWindowTo(moving_front->x_pos, moving_front->y_pos, moving_front->z_pos);
 					}
 					this->HandleButtonClick(widget);
@@ -4856,7 +4857,7 @@ void StopGlobalFollowVehicle(const Vehicle *v)
 {
 	Window *w = FindWindowById(WindowClass::MainWindow, 0);
 	if (w != nullptr && w->viewport->follow_vehicle == v->index) {
-		const Vehicle *moving_front = v->GetMovingFront();
+		const Vehicle *moving_front = RVTransportGetFollowVehicle(v)->GetMovingFront();
 		ScrollMainWindowTo(moving_front->x_pos, moving_front->y_pos, moving_front->z_pos, true); // lock the main view on the vehicle's last position
 		w->viewport->CancelFollow(*w);
 	}
