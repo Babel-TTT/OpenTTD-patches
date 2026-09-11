@@ -35,6 +35,7 @@ $cmds = @(
     'rvtransport carried firsttrain',
     'rvtransport vscroll firsttrain',
     'rvtransport state firstrv',
+    'rvtransport parts 7',
     'quit'
 )
 foreach ($c in $cmds) { try { $p.StandardInput.WriteLine($c); $p.StandardInput.Flush() } catch {}; Start-Sleep -Seconds 4 }

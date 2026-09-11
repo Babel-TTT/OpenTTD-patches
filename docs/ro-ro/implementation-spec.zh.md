@@ -316,6 +316,7 @@ M1 → M2 → M3 → M4 必须依序（各自收口即"最小可玩"增量）；
 | `verify_sim.ps1` | 在真实存档上跑"等待 → 站内扫描 → 装载"完整链路 | `sim: scan found=true attached=true carrying=1` |
 | `verify_attach.ps1` | 强制装载/卸载事务、载运清单与**重量记账**（`weights: carried=… total_incl_carried=… own=…`，装卸前后各读一次） | `attach`/`detach: ok`、`carrier #6 holds 1 road vehicle`、`RESULT: PASS (attach/detach, carrying list, and the carrier weight includes the carried vehicle)` |
 | `verify_details.ps1` | **载运清单的行数记账**（`rvtransport vscroll`）：装车前 `info=4 carried=0` → 装车后 `info=6 carried=1`，即"信息"页会多出表头 + 每台一行（这是清单能被滚到的前提；绘制本身需要 GUI，见 D.5 第 5 条） | `RESULT: PASS (the vehicles tab grows by the carried list: header plus one line per vehicle)` |
+| `verify_part_carrier.ps1` | **按"节"调用装载代码**（多舱段船的模型）：用调试命令 `rvtransport loadfrom <载体某节> <车>` 模拟"某一节进站跑装载代码"，检查车被挂到**载体车头**上（多舱段船以前就是因为把"节"当载体而卸不下车） | `loadfrom: part #7 -> carrier #6 … attached=true`、`carried rv #8 by=6 host_part=7` → `RESULT: PASS` |
 | `verify_wait_tick.ps1` | **等待状态与游戏时钟**（评审实测"卡车不再等待/装不上"的回归）：让游戏真的走 tick，检查当前订单是"站订单派生的装载中订单 + 等待旗标"时等待状态**保持**（修复前必被清掉），以及把该旗标取消后等待状态**被放弃** | `waiting flag readings: set \| set \| clear` → `RESULT: PASS` |
 | `verify_release.ps1` | **释放路径**（与载体销毁同一函数）：装载 → `rvtransport release` → 检查状态 | `RESULT: PASS (carried vehicle released and back on the road)` |
 | `verify_user_save.ps1` | 订单命令链验证（`rvtransport modify` load/unload/dest） | `modify: OK` |
@@ -421,6 +422,12 @@ rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（�
      - **为什么以前没抓到**：老脚本全都 `pause` 着测，且 `rvtransport sim` 是在同一条命令里"设等待 + 立刻装载"，**从没让游戏走过 tick** → 新增脚本 `verify_wait_tick.ps1`（让游戏真跑 1.2 秒再检查），它在**未修复的构建上正好失败**（`set | clear | clear`），修复后 `set | set | clear` → PASS ✓。
      - **顺带的可发现性修复**：评审一直找不到"载运清单"。清单本身在**详情窗"信息"页的最底部**（要滚到底），现在额外在**详情窗顶部**（不用切页、不用滚动）常显一行 `载有 N 台道路载具`（复用状态栏字符串，只在载体真的装着车时出现），并把"信息页要滚到底"写进手测指引。
   7. 🔧 **测试提速**（评审提问"回归能不能快点、能不能并行"）：实测测试存档 **1.2 秒**就加载完，而脚本原来写死等 **45 秒**、命令之间还各等 4–5 秒 —— 时间几乎全花在 `Start-Sleep` 上。现在：①`testrun/_common.ps1` 的 `Invoke-RoRoTest` 用"`save <探针>` 命令 + 轮询存档文件"判断"加载完/控制台可用"，命令间隔 1 秒（单个脚本 70–190 秒 → 十几秒）；②新增 `testrun/run_all.ps1` 并行跑全部脚本并汇总（默认 4 并行，实测 6 并行跑 6 个脚本墙钟 172 秒，瓶颈是还没改造的老脚本）；③脚本一律带 `-x` 运行（不回写配置文件，避免测试运行改掉 `build/roro-test.cfg`，这坑我踩过一次：端口实验把 `server_port` 改成了 4301）；④`-D :<端口>` 可给每个并行实例分配独立端口（实测同端口并行也能跑，只是会打一条绑定失败警告）。
+  8. 🔧 **M11e：多舱段（多节）船装不上/卸不下车的修复**：评审反馈"**不同舱段的船只似乎无法正常卸载车辆**"。根因：**多舱段船的每一节都是独立载具**，各自进站并各自跑 `LoadUnloadVehicle()`，而**被运载的道路载具是挂在"车头"上的**（`RVTransportAttach()` 要求 `part->First() == carrier`，记录的是车头 index）——
+     - 卸载侧：`RVTransportDetachAtStation(front /*那一节*/, st)` 在找 `transported_by == 该节 index` 的车，**永远找不到** → 一辆也卸不下来（评审看到的现象）；
+     - 装载侧：`RVTransportAttachAuto(那一节, …)` 会被 `part->First() != carrier` 直接拒掉 → 只有**恰好是车头的那一节**能装车（多舱段船等于只有一个舱能收车）；
+     - 等待判定：`RVTransportCountOnCarrier(那一节) == 0` → 载体的"等待道路载具"也会算错。
+     修法：`LoadUnloadVehicle()` 里的三处 RoRo 代码（装卸、等待装载、等待卸载）统一改用 **`front->First()`** 作为载体（火车本来就是车头，行为不变）。**验证**：新增 `verify_part_carrier.ps1`，用调试命令 `rvtransport loadfrom <某一节> <车>` 直接按"某节进站"调用装载代码，检查车被挂到车头上（`attached=true`、`by=6 host_part=7`）→ PASS；全量回归 15 脚本 ALL PASS。⚠ 真正的多舱段船需要 NewGRF 支持（`multi_part_ships`），自动化测试用"火车车厢当那一节"覆盖同一条代码路径，实船由评审复测。
+
 - ⏳ **待办**：联机 sync test；性能验收（500 台待运 + 20 节车单次装货扫描）；合并前剥离 `rvtransport` 调试命令；M11b/M11c 的人工复测（改命令后等待标记消失、载体详情窗"信息"页底部的载运清单、载体满载外观）。
 
 ---

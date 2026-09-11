@@ -4747,6 +4747,51 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		return true;
 	}
 
+	if (StrEqualsIgnoreCase(argv[1], "setwaiting")) {
+		/* Debug helper: put a road vehicle into the waiting state at the station of a carrier's current
+		 * order, without loading it (the first half of what `sim` does). Lets a script set up the
+		 * station state and then trigger the loading code path from a *part* of the carrier. */
+		if (argv.size() != 4) return false;
+		Vehicle *carrier = get_veh(argv[2]);
+		Vehicle *rv = get_veh(argv[3]);
+		if (carrier == nullptr || rv == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		if (rv->type != VehicleType::Road) { IConsolePrint(CC_ERROR, "not a road vehicle"); return true; }
+		carrier = carrier->First();
+		Station *st = Station::GetIfValid(carrier->current_order.GetDestination().ToStationID());
+		if (st == nullptr) { IConsolePrint(CC_ERROR, "carrier's current order has no station destination"); return true; }
+		rv->last_station_visited = st->index;
+		RVTransportSetWaiting(rv, true);
+		IConsolePrint(CC_DEFAULT, "setwaiting: rv #{} waiting at station #{} flags={} stopped={}",
+				rv->index.base(), st->index.base(), rv->rv_transport_flags, rv->vehstatus.Test(VehState::Stopped));
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "loadfrom")) {
+		/* Debug helper: run the carrier-side loading code of LoadUnloadVehicle() as if the given
+		 * *part* of the carrier had entered the station. A multi-part carrier (a multi-hold ship, for
+		 * instance) is processed part by part, while the road vehicles it carries belong to the front
+		 * vehicle, so this is the path which has to resolve the part to its carrier. */
+		if (argv.size() != 4) return false;
+		Vehicle *part = get_veh(argv[2]);
+		Vehicle *rv = get_veh(argv[3]);
+		if (part == nullptr || rv == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		Vehicle *carrier = part->First();
+		Station *st = Station::GetIfValid(carrier->current_order.GetDestination().ToStationID());
+		if (st == nullptr) { IConsolePrint(CC_ERROR, "carrier's current order has no station destination"); return true; }
+
+		const uint8_t rvf = carrier->current_order.GetRVTransportFlags();
+		Vehicle *found = RVTransportFindWaitingAtStation(st, carrier);
+		const bool attached = (found != nullptr) ? RVTransportAttachAuto(carrier, found, false) : false;
+		IConsolePrint(CC_DEFAULT, "loadfrom: part #{} -> carrier #{} order rvflags={} found={} attached={} carrying={}",
+				part->index.base(), carrier->index.base(), rvf, found != nullptr, attached, RVTransportCountOnCarrier(carrier));
+		Vehicle *first = RVTransportFindFirstOnCarrier(carrier);
+		if (first != nullptr) {
+			IConsolePrint(CC_DEFAULT, "loadfrom: carried rv #{} by={} host_part={}", first->index.base(),
+					first->transported_by.base(), first->transported_host_part.base());
+		}
+		return true;
+	}
+
 	if (StrEqualsIgnoreCase(argv[1], "criteria")) {
 		/* Set one selection criterion of a station order, in the same way the order window does (the
 		 * debug command exists so that the criteria can be exercised on a dedicated server). */

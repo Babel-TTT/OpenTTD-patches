@@ -2025,17 +2025,21 @@ static void LoadUnloadVehicle(Vehicle *front)
 		return;
 	}
 
-	/* RoRo: a carrier loads/unloads road vehicles according to its order parameter block. */
+	/* RoRo: a carrier loads/unloads road vehicles according to its order parameter block.
+	 * Every part of a multi-part carrier (a multi-hold ship, for instance) is a vehicle of its own
+	 * which enters the station and runs this code, while the road vehicles it carries are attached to
+	 * the *front* vehicle, so always work with the front. */
 	if (front->type != VehicleType::Road) {
-		const uint8_t rv_order_flags = front->current_order.GetRVTransportFlags();
+		Vehicle *carrier = front->First();
+		const uint8_t rv_order_flags = carrier->current_order.GetRVTransportFlags();
 		if ((rv_order_flags & ORVTF_UNLOAD) != 0) {
-			RVTransportDetachAtStation(front, st);
+			RVTransportDetachAtStation(carrier, st);
 		}
 		if ((rv_order_flags & ORVTF_LOAD) != 0) {
 			for (int i = 0; i < 8; i++) {
-				Vehicle *waiting = RVTransportFindWaitingAtStation(st, front); // applies the order's selection criteria
+				Vehicle *waiting = RVTransportFindWaitingAtStation(st, carrier); // applies the order's selection criteria
 				if (waiting == nullptr) break;
-				if (!RVTransportAttachAuto(front, waiting)) break;
+				if (!RVTransportAttachAuto(carrier, waiting)) break;
 			}
 		}
 	}
@@ -2403,9 +2407,11 @@ static void LoadUnloadVehicle(Vehicle *front)
 		}
 
 		/* RoRo: a carrier ordered to wait for road vehicles keeps loading while there is still
-		 * somebody to pick up at this station, and while nothing has been loaded yet. */
-		if (const uint8_t rv_order = front->current_order.GetRVTransportFlags(); (rv_order & ORVTF_WAIT) != 0 && (rv_order & ORVTF_LOAD) != 0) {
-			if (RVTransportFindWaitingAtStation(st, front) != nullptr || RVTransportCountOnCarrier(front) == 0) {
+		 * somebody to pick up at this station, and while nothing has been loaded yet. (As above, the
+		 * carried road vehicles belong to the front vehicle of a multi-part carrier.) */
+		Vehicle *rv_carrier = front->First();
+		if (const uint8_t rv_order = rv_carrier->current_order.GetRVTransportFlags(); (rv_order & ORVTF_WAIT) != 0 && (rv_order & ORVTF_LOAD) != 0) {
+			if (RVTransportFindWaitingAtStation(st, rv_carrier) != nullptr || RVTransportCountOnCarrier(rv_carrier) == 0) {
 				finished_loading = false;
 			}
 		}
@@ -2413,8 +2419,8 @@ static void LoadUnloadVehicle(Vehicle *front)
 		/* RoRo: the same waiting order keeps the carrier waiting until the road vehicles which want to
 		 * get off here have actually got off; the station may have had no free road stop tile when it
 		 * arrived. Without this, the carrier would drive on and try again on its next visit. */
-		if (const uint8_t rv_order = front->current_order.GetRVTransportFlags(); (rv_order & ORVTF_WAIT) != 0 && (rv_order & ORVTF_UNLOAD) != 0) {
-			if (RVTransportCountWantingUnloadHere(front, st) > 0) {
+		if (const uint8_t rv_order = rv_carrier->current_order.GetRVTransportFlags(); (rv_order & ORVTF_WAIT) != 0 && (rv_order & ORVTF_UNLOAD) != 0) {
+			if (RVTransportCountWantingUnloadHere(rv_carrier, st) > 0) {
 				finished_loading = false;
 			}
 		}

@@ -132,6 +132,16 @@ rvtransport modify <车辆ID> <订单序号> load|unload|dest|wait     # 走与 
 
 > 说明：`testrun\verify_release.ps1` 验证的是 `rvtransport release` 这条**手动释放**通道（`RVTransportForceRelease`，现在只用于调试命令与读档兜底）；普通玩法里载体被毁时走的是"一起销毁"（`RVTransportDestroyCarriedVehicles`）。
 
+**多舱段（多节）船：**
+
+JGRPP 允许 NewGRF 船只做成**多节**（每节一个货舱，各自有容量，例如你存档里那艘：第 0 节 720 吨、第 1 节 450 吨）。请单独验一下：
+
+1. 用带多节船的船只集（你本地那局就有）建一条和上面一样的"码头 + 公路停靠站"线路；
+2. 让卡车等待被运载，船带着"装载道路载具"的订单靠泊；
+3. 期望：**任意一节**都能收车（不再只有第 0 节能收），`rvtransport parts <船>` 会显示某节 `holds_rv=true`；
+4. 到对岸后（订单含"卸载道路载具"）：车必须被放下来。**修复前的现象就是这里失败**（车留在船上、永远卸不下来）；
+5. 若还有问题，把 `rvtransport list` / `rvtransport parts <船>` / `rvtransport carried <船>` 的输出发我。
+
 ## 7. 被运载车辆的可见性与"定位"
 
 - **车辆列表**：被运载的卡车**仍然出现在车辆列表与分组列表里**（状态列显示"正在被运载"），不会被藏起来；
