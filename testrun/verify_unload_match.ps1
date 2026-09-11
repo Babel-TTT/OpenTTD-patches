@@ -30,6 +30,14 @@ $cmds = @(
     'rvtransport carried firsttrain',
     'rvtransport detach firsttrain 0',             # the station it names: must be dropped
     'rvtransport carried firsttrain',
+    # Let the game tick after the unload. This is what caught the reported crash: the vehicle used to
+    # stay in the *boarding* station's list of loading vehicles, and as soon as it was put back on the
+    # road that station processed it as a loading vehicle and asserted, because its current order has
+    # moved on by then.
+    'unpause',
+    'pause',
+    'rvtransport state firstrv',
+    'rvtransport state firsttrain',
     'quit'
 )
 $txt = Invoke-RoRoTest -Tag 'unloadmatch' -Exe $exe -Config $cfg -Savegame $sav -Commands $cmds -LogName 'log_unload_match.txt'

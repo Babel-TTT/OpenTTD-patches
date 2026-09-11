@@ -384,6 +384,18 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 	 * stop is recomputed without it. */
 	if (!IsBayRoadStopTile(rv->tile)) RVTransportReleaseRoadStop(rv);
 
+	/* The vehicle is no longer at the station it was picked up at, so take it out of that station's
+	 * list of vehicles which are loading there (the engine only does that in Vehicle::LeaveStation(),
+	 * which the vehicle never got to run - it was loaded while it was waiting). Leaving it in the list
+	 * would make the station process it as a loading vehicle as soon as it is put back on the road,
+	 * which asserts because its current order has moved on by then. */
+	if (Station::IsValidID(rv->last_station_visited)) {
+		Station *st = Station::Get(rv->last_station_visited);
+		st->loading_vehicles.erase(std::remove(st->loading_vehicles.begin(), st->loading_vehicles.end(), rv), st->loading_vehicles.end());
+		HideFillingPercent(&rv->fill_percent_te_id);
+		rv->CancelReservation(StationID::Invalid(), st);
+	}
+
 	/* The road vehicle has done its "wait to be transported" order: move it on to its next one, which
 	 * is where it wants to get off. */
 	RVTransportAdvanceCarriedVehicleOrder(rv);
