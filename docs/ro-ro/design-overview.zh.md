@@ -347,7 +347,7 @@ struct TransportedRoadVehicle {               // 挂在 Vehicle(节) 的 cargo �
 
 > 通用约定：每个里程碑以"可运行 + 回归不炸"收口；分支从 `OpenTTD-patches`(jgrpp-0.73.1) 拉出，建议名 `feature/ro-ro-road-vehicles`；每步先补回归测试点（`regression/` 目录、同步测试 sync test），全部改动带确定性的纯整数运算。
 >
-> **追加里程碑（施工中与评审来回产生，超出本表 P0–P8）**：M9 铰接（多节）道路载具运载、M10 条件选择运载（参数化筛选）、M10b/c 设置窗口 GUI、M10d"路签"判据（并移除指代不清的"声明目的地"）、M11/M11b 实测问题与等待状态修复。设计依据与验证记录见《实现规格书》§11 与附录 D。
+> **追加里程碑（施工中与评审来回产生，超出本表 P0–P8）**：M9 铰接（多节）道路载具运载、M10 条件选择运载（参数化筛选）、M10b/c 设置窗口 GUI、M10d"路签"判据（并移除指代不清的"声明目的地"）、M11/M11b 实测问题与等待状态修复、M11c 重量记账（被运载车辆计入载体自重）与"满载"外观、载体详情窗口的载运清单。设计依据与验证记录见《实现规格书》§11 与附录 D。
 
 ### P0 玩法规格冻结（0.5–1 周，纯文档+原型演示）
 - 产出：本文档第 1.4 决策表全部打勾；用现有 0.73.1 或 decouple fork 跑一张测试地图，人工确认"一个站内公路停靠站+铁路站台、Bus/Truck 分类、直通式路站行为"符合假设（§2.2）。
@@ -391,6 +391,7 @@ struct TransportedRoadVehicle {               // 挂在 Vehicle(节) 的 cargo �
 
 ### P5 GUI 完整化（1 周）
 - UI 方案（基于 0.73.1 窗口实况，SA3）：**运载清单做成由 VehicleView 打开的独立子窗口**（类比 Orders/Timetable 子窗，`WindowClass::VehicleDetails` 之外新值或复用机制），数据源 = `Vehicle::IterateTypeFrontOnly` 过滤 TRANSPORTED 位，只读列"车型/数量/重量/目的站/宿主载体/滞留天数"，点击单项可开该车 VehicleView/Details；**不要给非火车详情窗加页签**（只有火车详情窗有 tab 条且带 static_assert 约束，vehicle_gui.h:26、vehicle_gui.cpp:2954）；可选：火车详情窗加第 6 个 tab（TrainDetailsWindowTabs+widget+DrawTrainDetails 分支）。
+  - **M11c 实作（比上表更省）**：没有新开独立窗口，也没有加第 6 个 tab——火车沿用已有的**"车辆"页**（该页本来就有滚动条），在列表末尾追加"载运的道路载具"一段；船/机在**现有详情面板底部**追加同样的列表（`DrawCarriedRoadVehicles()`），面板高度随装载数自动增减（`VehicleDetailsWindow::GetVehDetailsHeight()` + 装卸后 `InvalidateWindowData(WindowClass::VehicleDetails, carrier)`）。这样完全没有碰"非火车详情窗不能加页签"的约束，也没有引入新的窗口类；需要精确清单的脚本化场景仍可用控制台 `rvtransport carried <载体ID>`。
 - 站窗口显示"待运队列"（station_gui.cpp）；订单条件编辑面板（order_gui 开关/下拉/地图拾取，参照 pulsexlb 模式）；新增"状态串/新闻串/提示串"（en+简中，车种×4 文本可用 `###length VEHICLE_TYPES` 组）。
 - 涉及：`vehicle_gui.cpp`(+`widgets/vehicle_widget.h`、`vehicle_gui.h`)、`roadveh_gui.cpp`、`station_gui.cpp`、`order_gui.cpp`、`depot_gui.cpp`（列表入口按钮）、`train_gui.cpp`（可选 tab）、`widgets/*`、`lang/english.txt`+中文。
 

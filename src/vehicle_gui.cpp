@@ -3055,6 +3055,29 @@ std::span<const StringID> GetServiceIntervalDropDownTexts()
 	}
 }
 
+/**
+ * Draw the road vehicles carried by a ship or aircraft at the bottom of its details panel.
+ * Trains list them in the "vehicles" tab instead, which scrolls.
+ * @param carrier The carrier vehicle.
+ * @param r The rect to draw in.
+ * @param y The first line to use.
+ * @return The next free line.
+ */
+int DrawCarriedRoadVehicles(const Vehicle *carrier, const Rect &r, int y)
+{
+	std::vector<const Vehicle *> carried;
+	RVTransportGetCarriedVehicles(carrier, carried);
+	if (carried.empty()) return y;
+
+	DrawString(r.left, r.right, y, STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLES, TextColour::LightBlue);
+	y += GetCharacterHeight(FontSize::Normal);
+	for (const Vehicle *rv : carried) {
+		DrawString(r.left + WidgetDimensions::scaled.framerect.left, r.right, y, GetString(STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLE, rv->index));
+		y += GetCharacterHeight(FontSize::Normal);
+	}
+	return y;
+}
+
 /** Class for managing the vehicle details window. */
 struct VehicleDetailsWindow : Window {
 	TrainDetailsWindowTabs tab = TDW_TAB_CARGO; ///< For train vehicles: which tab is displayed.
@@ -3112,10 +3135,10 @@ struct VehicleDetailsWindow : Window {
 		}
 		if (!gui_scope) return;
 		const Vehicle *v = Vehicle::Get(this->window_number);
-		if (v->type == VehicleType::Road || v->type == VehicleType::Ship) {
+		if (v->type == VehicleType::Road || v->type == VehicleType::Ship || v->type == VehicleType::Aircraft) {
 			const NWidgetBase *nwid_info = this->GetWidget<NWidgetBase>(WID_VD_MIDDLE_DETAILS);
-			uint aimed_height = this->GetRoadOrShipVehDetailsHeight(v);
-			/* If the number of articulated parts changes, the size of the window must change too. */
+			uint aimed_height = this->GetVehDetailsHeight(v);
+			/* If the number of articulated parts or carried road vehicles changes, the size of the window must change too. */
 			if (aimed_height != nwid_info->current_y) {
 				this->ReInit();
 			}
@@ -3128,14 +3151,17 @@ struct VehicleDetailsWindow : Window {
 	}
 
 	/**
-	 * Gets the desired height for the road vehicle and ship details panel.
-	 * @param v Road vehicle being shown.
+	 * Gets the desired height for the road vehicle, ship and aircraft details panel.
+	 * @param v Vehicle being shown.
 	 * @return Desired height in pixels.
 	 */
-	uint GetRoadOrShipVehDetailsHeight(const Vehicle *v)
+	uint GetVehDetailsHeight(const Vehicle *v)
 	{
 		uint desired_height;
-		if (v->Next() != nullptr) {
+		if (v->type == VehicleType::Aircraft) {
+			/* An aircraft always has its shadow part, but its details panel has a fixed height. */
+			desired_height = 5 * GetCharacterHeight(FontSize::Normal) + WidgetDimensions::scaled.vsep_normal * 2;
+		} else if (v->Next() != nullptr) {
 			/* An articulated RV has its text drawn under the sprite instead of after it, hence 15 pixels extra. */
 			desired_height = 4 * GetCharacterHeight(FontSize::Normal) + WidgetDimensions::scaled.vsep_normal * 2;
 			if (v->type == VehicleType::Road) desired_height += ScaleGUITrad(15);
@@ -3145,6 +3171,14 @@ struct VehicleDetailsWindow : Window {
 			}
 		} else {
 			desired_height = 5 * GetCharacterHeight(FontSize::Normal) + WidgetDimensions::scaled.vsep_normal * 2;
+		}
+
+		/* RoRo: ships and aircraft list the road vehicles they carry at the bottom of the panel. */
+		if (v->type == VehicleType::Ship || v->type == VehicleType::Aircraft) {
+			const uint carried = RVTransportCountOnCarrier(v);
+			if (carried != 0) {
+				desired_height += (carried + 1) * GetCharacterHeight(FontSize::Normal) + WidgetDimensions::scaled.vsep_normal * 2;
+			}
 		}
 		return desired_height;
 	}
@@ -3255,11 +3289,8 @@ struct VehicleDetailsWindow : Window {
 				switch (v->type) {
 					case VehicleType::Road:
 					case VehicleType::Ship:
-						size.height = this->GetRoadOrShipVehDetailsHeight(v) + padding.height;
-						break;
-
 					case VehicleType::Aircraft:
-						size.height = 5 * GetCharacterHeight(FontSize::Normal) + WidgetDimensions::scaled.vsep_normal * 2 + padding.height;
+						size.height = this->GetVehDetailsHeight(v) + padding.height;
 						break;
 
 					default:

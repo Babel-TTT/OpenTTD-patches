@@ -4550,6 +4550,8 @@ STR_VEHICLE_STATUS_CRASHED                                      :{RED}已撞毁�
 STR_VEHICLE_STATUS_WAITING_TO_BE_TRANSPORTED                    :{LTBLUE}等待被运载
 STR_VEHICLE_STATUS_BEING_TRANSPORTED                            :{LTBLUE}正在被运载
 STR_VEHICLE_STATUS_CARRYING_ROAD_VEHICLES                       :{LTBLUE}载有 {COMMA} 台道路载具
+STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLES                       :载运的道路载具：
+STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLE                        :{BLACK}{VEHICLE}
 STR_VEHICLE_STATUS_BROKEN_DOWN                                  :{RED}抛锚
 STR_VEHICLE_STATUS_STOPPED                                      :{RED}停运
 STR_VEHICLE_STATUS_TRAIN_STOPPING_VEL                           :{RED}{VELOCITY} - 正在停止

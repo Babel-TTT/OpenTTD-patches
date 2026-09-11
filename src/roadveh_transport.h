@@ -132,6 +132,25 @@ uint32_t RVTransportCountOnCarrier(const Vehicle *carrier);
 Vehicle *RVTransportFindFirstOnCarrier(const Vehicle *carrier);
 
 /**
+ * Collect the road vehicles this carrier currently holds (front vehicles only, in vehicle id order).
+ * @param carrier Carrier (front vehicle) to look at.
+ * @param out Receives the carried road vehicles.
+ */
+void RVTransportGetCarriedVehicles(const Vehicle *carrier, std::vector<const Vehicle *> &out);
+
+/**
+ * Weight in tonnes of the road vehicles this carrier holds. Added to the carrier's own weight by
+ * GroundVehicle::CargoChanged(), so that accelerating, climbing and braking account for them.
+ */
+uint32_t RVTransportGetCarriedWeightTonnes(const Vehicle *carrier);
+
+/**
+ * Does this carrier part hold any road vehicle? Used for the weight above and for drawing the part
+ * with its "loaded" appearance while it carries road vehicles.
+ */
+bool RVTransportPartHoldsRoadVehicles(const Vehicle *part);
+
+/**
  * Vehicle whose position represents this vehicle on the map: a carried road vehicle is where its
  * carrier is. Used by the camera/viewport follow ("centre on vehicle") and other actions which
  * need the position of a vehicle.

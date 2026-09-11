@@ -28,6 +28,7 @@
 #include "core/random_func.hpp"
 #include "company_base.h"
 #include "newgrf.h"
+#include "roadveh_transport.h"
 #include "infrastructure_func.h"
 #include "order_backup.h"
 #include "zoom_func.h"
@@ -1444,6 +1445,9 @@ void Train::GetImage(Direction direction, EngineImageType image_type, VehicleSpr
 	SpriteID sprite = GetDefaultTrainSprite(spritenum, direction);
 
 	if (this->cargo.StoredCount() >= this->cargo_cap / 2U) sprite += _wagon_full_adder[spritenum];
+
+	/* RoRo: a part which carries road vehicles is drawn as if it were fully loaded. */
+	if (this->cargo_cap > 0 && RVTransportPartHoldsRoadVehicles(this)) sprite += _wagon_full_adder[spritenum];
 
 	result->Set(sprite);
 }

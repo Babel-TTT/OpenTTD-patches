@@ -246,6 +246,7 @@
 | **M10d** | **加入"路签"判据**（对齐 px-patch 的 `MOF_COUPLE_SLOT`：候选必须是该路签的占用者）；**移除"声明目的地"判据**（多个卸货计划时只读第一条，指代不清） | `verify_slot.ps1` PASS |
 | **M11** | **评审实测 5 个问题的修复**：订单行字符串参数错配（`(invalid parameter)`，亦为那次崩溃最可信根因）、直通站单侧被占不能卸（改用站点自身的泊位/入口记账 + `Enter()` 记账配对）、卸载不区分车的调度（只卸"自己声明在本站下车"的车）、设置窗口按钮无交互反馈（改用 `OnRealtimeTick()` 轮询快照）、"卸不下就直接开走"补成可选的对称等待 | 全量回归 12 脚本全绿、0 断言 |
 | **M11b** | **等待状态在改命令后不消失**：跳到下一条调度/命令回库时清掉 `RVTF_WAITING` 与随之的 `Stopped`（放在 `RoadVehController()` 的停止判定之前，与进入等待的 `Vehicle::BeginLoading()` 条件对称） | 全量回归全绿；待评审复测 |
+| **M11c** | **重量记账 + 载重外观 + 载运清单**（评审实测反馈的三点）：①被运载车辆计入**载体自重**（`RVTransportGetCarriedWeightTonnes()` → `GroundVehicle::CargoChanged()`，装卸后 `Train::ConsistChanged(CCF_LOADUNLOAD)` 重算）；②载体"看起来装满了"（原版火车按"货物过半即满"、NewGRF 车辆集按 `stored*totalsets/capacity`，只要该节载有道路载具就取满载图）；③**载运清单**：载体详情窗口列出所载车辆（火车在"车辆"页末尾、可滚动，船/机在详情面板底部、窗口高度自动增减） | `verify_attach.ps1` 重量断言 PASS（装卸前后 `carried=`/`total_incl_carried=`/`own=`）+ 全量回归 12 脚本 |
 
 追加项共同的收尾约束（与 M8 一致）：每个里程碑都要"可编译 + 最小场景可玩 + 回归不炸"，并同步规划/规格/手测文档。
 
@@ -294,7 +295,7 @@ M1 → M2 → M3 → M4 必须依序（各自收口即"最小可玩"增量）；
 |---|---|
 | 开发副本 | `D:\CNS\ottd\OpenTTD-patches-rvtransport`（由 0.73.1 基线复制） |
 | 分支 | `feature/road-veh-transport` |
-| 提交 | 分支 `feature/road-veh-transport` 共 22 个提交（`611aabd7ba`..`1ff9a7ff61`）：`bf70a8b4da` M1 存档骨架 → `cdf4cef8e0` M2a 核心事务 → `780396da90` M2b 订单驱动装卸 → `79937c9ecd` 载体等车 → `60d51de6b0` 载体状态串 → `7ba6ce0d55` 载体销毁释放 → `1ff9a7ff61` 载体类型收紧 + release 调试命令 |
+| 提交 | 分支 `feature/road-veh-transport` 共 **34 个提交**（`611aabd7ba`..`847f02b354`，2026-09-11）：`bf70a8b4da` M1 存档骨架 → `cdf4cef8e0` M2a 核心事务 → `780396da90` M2b 订单驱动装卸 → `79937c9ecd` 载体等车 → `60d51de6b0` 载体状态串 → `7ba6ce0d55` 载体销毁释放 → `1ff9a7ff61` 载体类型收紧 + release 调试命令 → … → `2c312ae3fe` M9–M11b（铰接/条件筛选/设置窗口/路签/五项修复/等待状态）→ `847f02b354` M11c（重量记账 + 满载外观 + 载运清单，见 §11 与 D.5） |
 | 纯基线副本（旧档生成器） | `D:\CNS\ottd\OpenTTD-patches-baseline`（未改动，已构建） |
 | 构建方式 | MSYS2/MinGW64：`D:\msys64\mingw64\bin` 的 cmake+ninja+g++；`cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DOPTION_USE_ASSERTS=ON`，然后 `cmake --build build --target openttd` |
 
@@ -311,7 +312,7 @@ M1 → M2 → M3 → M4 必须依序（各自收口即"最小可玩"增量）；
 | `smoke_m2a.ps1` | 空地图加载 + 跑 `rvtransport` 命令 | `SMOKE: no crash detected` |
 | `verify_intransit.ps1` | **收运中存档往返**：装载 → save → 重新加载 → 检查被运载状态是否保留 → 再落地 | `RESULT: PASS (carried state survives save/load, and unload still works)` |
 | `verify_sim.ps1` | 在真实存档上跑"等待 → 站内扫描 → 装载"完整链路 | `sim: scan found=true attached=true carrying=1` |
-| `verify_attach.ps1` | 强制装载/卸载事务与重量记账 | `attach`/`detach: ok`、`flags=0 hidden=false by=1048575` |
+| `verify_attach.ps1` | 强制装载/卸载事务、载运清单与**重量记账**（`weights: carried=… total_incl_carried=… own=…`，装卸前后各读一次） | `attach`/`detach: ok`、`carrier #6 holds 1 road vehicle`、`RESULT: PASS (attach/detach, carrying list, and the carrier weight includes the carried vehicle)` |
 | `verify_release.ps1` | **释放路径**（与载体销毁同一函数）：装载 → `rvtransport release` → 检查状态 | `RESULT: PASS (carried vehicle released and back on the road)` |
 | `verify_user_save.ps1` | 订单命令链验证（`rvtransport modify` load/unload/dest） | `modify: OK` |
 | `verify_toggle.ps1` | 勾选规则（与订单窗口共用 `RVTransportToggleOrderFlag()`） | `RESULT: PASS` |
@@ -399,7 +400,13 @@ rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（�
   - ⚠ 崩溃日志（`C:\Users\11936\Documents\OpenTTD\crash-20260911T050825Z.log`）没有符号无法逐帧定位；上述参数错配是当前最可信的根因并已消除，**若再复现请把新日志给我**（新的崩溃日志会带同样的栈）。
 - ✅ **M11b：等待状态在"改命令"后不消失的修复**：道路载具进入"等待被运载"后，玩家**跳到下一条调度**或**命令回库**时，等待标记（与随之而来的 `Stopped`）没有被清掉——车辆窗口状态栏会一直显示"等待被运载"，而且因为车被我们置于停止状态，**回库命令根本不会被执行**。修法：新增 `RVTransportTickWaiting()`，在 `RoadVehController()` 的"已停止"提前返回**之前**调用：只要当前订单不再是"车站订单 + 装载道路载具"（与进入等待时的条件 `Vehicle::BeginLoading()` 完全对称），就调用 `RVTransportSetWaiting(rv, false)` 清掉标记并解除停止 ✓。
   - 顺带确认：车辆窗口状态栏里"等待被运载"后面的 `1:` 不是 bug，而是"车辆窗口显示订单编号"设置附带的订单号（`STR_VEHICLE_VIEW_ORDER_NUMBER`），与等待状态无关。
-- ⏳ **待办**：铰接车实机走查（需含铰接车的 NewGRF，见 M9）；车辆详情窗口里的"载运清单"；船/机载体实机走查（手测步骤见 `manual-test-guide.zh.md` 第 6 节）；载体事故销毁路径实机走查；**等待中的卡车仍占着停靠点 bay**（是否让等待时也释放 bay 待定）；联机 sync test；性能验收；合并前剥离 `rvtransport` 调试命令。
+- ✅ **M11c：重量记账、载重外观与载运清单**（评审实测三点反馈）：
+  1. **被运载车辆计入载体自重**：此前载体的重量完全不含车上的卡车。新增 `RVTransportGetCarriedWeightTonnes()`（按车头累加 `transported_weight`，整挂只算一次），接到 `GroundVehicle::CargoChanged()` 里——这是**引擎唯一的"重量热点"**，所有载具类型的重量缓存都在这一行产生；装卸后的重算搭载体自己的 `MarkDirty()`（它本来就会调 `CargoChanged()` / `UpdateAcceleration()` / 整列图像缓存）。**范围说明**：只有火车维护整列重量缓存（`gcache.cached_weight`，影响加速/油耗/桥重/性能页），船与飞机在本引擎里**没有**这种缓存（它们的重量不参与任何判定），因此对它们"重量"只体现在容量判定上，无需也不该另造缓存。调试命令 `rvtransport state <火车>` 现在打印 `weights: carried=Nt total_incl_carried=Nt own=Nt`，可用来直接观察。
+  2. **载体外观"装满了"**：默认火车按原版规则（`cargo.StoredCount() >= cargo_cap / 2` → `_wagon_full_adder`，`train_cmd.cpp`），NewGRF 车辆集按 `stored * totalsets / capacity`（`newgrf_engine.cpp`）——两处都加了一条"该节载有道路载具就按满载取值"的短路（`RVTransportPartHoldsRoadVehicles()`），于是只要车上装着卡车，整节车厢就画成满载外观；装卸后清掉该节的图像缓存（`InvalidateImageCache()`）并标记视口重画（火车整列由 `Train::MarkDirty()` 覆盖，船/机里非车头的节由我们额外补一刀）。**默认船只/飞机没有"满载"变体图**（它们的图与载货无关），所以对它们无可见变化——这是引擎内容所限，不是没接。
+  3. **载运清单**：载体详情窗口现在列出所载车辆（`载运的道路载具：` + 每台一行，`{VEHICLE}` = 车辆名 + 编号，可与车辆列表对上）。火车放在"车辆"页**末尾**（该页本来就有滚动条）；船/机放在详情面板**底部**，且**窗口高度随装载数自动增减**（`DrawCarriedRoadVehicles()` + `VehicleDetailsWindow::GetVehDetailsHeight()`，装卸后由 `InvalidateWindowData(WindowClass::VehicleDetails, carrier)` 触发重排）。控制台 `rvtransport carried <载体ID>` 可脚本化地列出同样内容（编号/货物/重量/声明卸货站）。
+  4. **不做的事**（评审确认）：**等待中的卡车仍然占着停靠点的一个停车位**——保持引擎原有语义（它在站里等，本来就该占位），不改。
+  5. 🔧 **本轮自己踩到并修掉的一次崩溃**（回归脚本抓到）：刷新被影响的那一节时，最初写了 `Vehicle::UpdateViewportDeferred()`。它跟"立即版" `Vehicle::UpdateViewport()` 不同，**在专用服务器（headless）上不会提前返回**：它把"新的视口哈希桶 + 车辆裸指针"塞进延迟队列，同时立刻改写车辆的 `coord`，而真正的哈希链更新要等队列结算（队列只在视口绘制里结算，专用服务器永远不结算）。于是哈希链与坐标不一致，这种状态下删除车辆（例如销毁载体）就会顺着失效指针写内存 —— `verify_destroy.ps1` 稳定复现（`C0000005`，写入地址 0，读档完成后约 0.9 秒）。修法：这里只做 `InvalidateImageCache()` + 立即版 `Vehicle::UpdateViewport(true)`（headless 下直接跳过），重量刷新交给 `MarkDirty()`。**结论/经验：除非能确定队列会在车辆被删除前结算，否则不要用 `UpdateViewportDeferred()`**（顺带确认 `Train::MarkDirty()` 已经会遍历整列并清图像缓存，所以最初多写的 `ConsistChanged()` 也是多余的，已去掉）。
+- ⏳ **待办**：联机 sync test；性能验收（500 台待运 + 20 节车单次装货扫描）；合并前剥离 `rvtransport` 调试命令；M11b/M11c 的人工复测（改命令后等待标记消失、载体详情窗口的载运清单与满载外观）。
 
 ---
 

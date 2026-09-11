@@ -53,6 +53,7 @@
 #include "station_base.h"
 #include "order_cmd.h"
 #include "roadveh_transport.h"
+#include "train.h"
 #include "tracerestrict.h"
 #include "tracerestrict_cmd.h"
 #include "vehicle_base.h"
@@ -4502,6 +4503,7 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> slot any|<slot_id>");
 		IConsolePrint(CC_HELP, "  rvtransport mkslot <name> [max_occupancy]   # create a road vehicle slot");
 		IConsolePrint(CC_HELP, "  rvtransport slot <vehicle_id> <slot_id> on|off");
+		IConsolePrint(CC_HELP, "  rvtransport carried <carrier_id>");
 		IConsolePrint(CC_HELP, "  rvtransport release <rv_id>");
 		IConsolePrint(CC_HELP, "  rvtransport detach <carrier_id> <station_id> [force]");
 		IConsolePrint(CC_HELP, "  rvtransport selftest");
@@ -4558,6 +4560,13 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 			for (const TraceRestrictSlotID slot : held_slots) {
 				IConsolePrint(CC_DEFAULT, "  slot: {} (name='{}')", slot.base(), TraceRestrictSlot::Get(slot)->name);
 			}
+		} else if (v->type == VehicleType::Train) {
+			/* Show that the carrier is heavier while it carries road vehicles (ConsistChanged()
+			 * recomputes the cached weight, which includes them). */
+			const uint32_t carried = RVTransportGetCarriedWeightTonnes(v);
+			const uint32_t total = Train::From(v)->gcache.cached_weight;
+			IConsolePrint(CC_DEFAULT, "  weights: carried={}t total_incl_carried={}t own={}t",
+					carried, total, (total >= carried) ? total - carried : 0);
 		}
 		return true;
 	}
@@ -4863,6 +4872,23 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		const bool ok = res.Succeeded();
 		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "slot: {} (vehicle #{} slot {} occupant={})",
 				ok ? "OK" : "FAILED", v->index.base(), slot_raw, TraceRestrictSlot::GetIfValid(TraceRestrictSlotID{slot_raw})->IsOccupant(v->index));
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "carried")) {
+		/* List the road vehicles a carrier holds (the same list the train details window shows). */
+		if (argv.size() != 3) return false;
+		Vehicle *carrier = get_veh(argv[2]);
+		if (carrier == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		carrier = carrier->First();
+		std::vector<const Vehicle *> carried;
+		RVTransportGetCarriedVehicles(carrier, carried);
+		IConsolePrint(CC_DEFAULT, "carrier #{} holds {} road vehicle(s):", carrier->index.base(), carried.size());
+		for (const Vehicle *rv : carried) {
+			IConsolePrint(CC_DEFAULT, "  rv #{} unit={} cargo={} stored={} weight={}t declared_dest={}",
+					rv->index.base(), rv->unitnumber, (int)rv->cargo_type, rv->cargo.StoredCount(), rv->transported_weight,
+					RVTransportGetDeclaredDestination(rv).base());
+		}
 		return true;
 	}
 

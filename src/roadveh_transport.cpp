@@ -97,6 +97,46 @@ Vehicle *RVTransportFindFirstOnCarrier(const Vehicle *carrier)
 	return nullptr;
 }
 
+/** Collect the road vehicles this carrier currently holds (front vehicles only, in vehicle id order). */
+void RVTransportGetCarriedVehicles(const Vehicle *carrier, std::vector<const Vehicle *> &out)
+{
+	out.clear();
+	if (carrier == nullptr) return;
+	for (const Vehicle *v : Vehicle::Iterate()) {
+		if ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) continue;
+		if (v->transported_by != carrier->index) continue;
+		if (!v->IsFrontEngine()) continue;
+		out.push_back(v);
+	}
+}
+
+/** Weight in tonnes of the road vehicles this carrier holds. */
+uint32_t RVTransportGetCarriedWeightTonnes(const Vehicle *carrier)
+{
+	if (carrier == nullptr) return 0;
+	uint32_t weight = 0;
+	for (const Vehicle *v : Vehicle::Iterate()) {
+		if ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) continue;
+		if (v->transported_by != carrier->index) continue;
+		if (!v->IsFrontEngine()) continue;
+		weight += v->transported_weight;
+	}
+	return weight;
+}
+
+/** Does this carrier part hold any road vehicle? */
+bool RVTransportPartHoldsRoadVehicles(const Vehicle *part)
+{
+	if (part == nullptr) return false;
+	for (const Vehicle *v : Vehicle::Iterate()) {
+		if ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) continue;
+		if (v->transported_host_part != part->index) continue;
+		if (!v->IsFrontEngine()) continue;
+		return true;
+	}
+	return false;
+}
+
 /** Set or clear the "waiting to be transported" state; a waiting vehicle is stopped. */
 void RVTransportSetWaiting(Vehicle *rv, bool waiting)
 {
@@ -211,6 +251,34 @@ static void RVTransportReleaseRoadStop(Vehicle *rv)
 }
 
 /**
+ * Refresh a carrier after the road vehicles it holds changed: it is heavier now (MarkDirty()
+ * recomputes the cached weight through CargoChanged(), which adds the carried vehicles, and the
+ * acceleration), the affected part is drawn with its "loaded" appearance, and the details window
+ * lists the vehicles which are on board now.
+ * @param carrier Carrier front vehicle.
+ * @param part The part which gained or lost a road vehicle.
+ */
+static void RVTransportRefreshCarrier(Vehicle *carrier, Vehicle *part)
+{
+	if (carrier == nullptr) return;
+
+	/* Recomputes the weight, the consist image caches and the acceleration. */
+	carrier->MarkDirty();
+
+	if (part != nullptr) {
+		/* A part which is not the front of a ship or aircraft is not covered by MarkDirty(). Only the
+		 * image cache and the viewport may be touched here: UpdateViewportDeferred() would leave a
+		 * pointer to this vehicle in the deferred viewport hash, which a later vehicle deletion (a
+		 * destroyed carrier, for instance) turns into a dangling one. */
+		part->InvalidateImageCache();
+		part->UpdateViewport(true);
+	}
+
+	/* The details window lists the carried road vehicles: ships and aircraft grow/shrink with it. */
+	InvalidateWindowData(WindowClass::VehicleDetails, carrier->index);
+}
+
+/**
  * Load one road vehicle onto a carrier part: the road vehicle leaves the road network
  * and is remembered by the carrier (single tick commit, no intermediate state).
  * @param force skip the cargo class / capacity checks (used by the debug self test).
@@ -263,7 +331,8 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 	 * stop is recomputed without it. */
 	if (!IsBayRoadStopTile(rv->tile)) RVTransportReleaseRoadStop(rv);
 
-	carrier->MarkDirty();              // refresh carrier weight; must be the front (CargoChanged asserts this->First() == this)
+	carrier->MarkDirty();              // the carrier is heavier now and the part looks loaded
+	RVTransportRefreshCarrier(carrier, part);
 	return true;
 }
 
@@ -402,6 +471,7 @@ bool RVTransportDetachAtStation(Vehicle *carrier, Station *st, bool force)
 		}
 
 		carrier->MarkDirty();
+		RVTransportRefreshCarrier(carrier, Vehicle::GetIfValid(host_part));
 		any = true;
 	}
 	return any;

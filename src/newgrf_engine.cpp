@@ -34,6 +34,7 @@
 #include "core/format.hpp"
 #include "3rdparty/fmt/ranges.h"
 #include "3rdparty/robin_hood/robin_hood.h"
+#include "roadveh_transport.h"
 
 #include "safeguards.h"
 
@@ -1216,6 +1217,10 @@ static uint32_t VehicleGetVariable(Vehicle *v, const VehicleScopeResolver *objec
 
 	uint stored = v->cargo.StoredCount();
 	uint capacity = v->cargo_cap;
+
+	/* RoRo: a carrier part which holds road vehicles is drawn with its "loaded" sprite set.
+	 * (Road vehicles are never carriers, so they skip the lookup.) */
+	if (v->type != VehicleType::Road && RVTransportPartHoldsRoadVehicles(v)) stored = std::max<uint>(stored, capacity);
 	if (v->type == VehicleType::Ship) {
 		for (const Vehicle *u = v->Next(); u != nullptr; u = u->Next()) {
 			stored += u->cargo.StoredCount();

@@ -59,6 +59,8 @@ void DrawRoadVehImage(const Vehicle *v, const Rect &r, VehicleID selection, Engi
 void DrawShipImage(const Vehicle *v, const Rect &r, VehicleID selection, EngineImageType image_type);
 void DrawAircraftImage(const Vehicle *v, const Rect &r, VehicleID selection, EngineImageType image_type);
 
+int DrawCarriedRoadVehicles(const Vehicle *carrier, const Rect &r, int y);
+
 void ShowBuildVehicleWindow(TileIndex tile, VehicleType type);
 void ShowTemplateTrainBuildVehicleWindow(Train **virtual_train);
 

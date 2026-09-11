@@ -10,11 +10,13 @@ own schedule.
 * **Status**: playable and verified in game — waiting, loading, transport, unloading, release,
   articulated road vehicles, and train/ship/aircraft carriers have all been walked through; the
   remaining work is listed under *Known limitations*
-* **Diff vs. base**: `src/` — 35 files, +2398/−36 · `docs/ro-ro/` — 4 files (+1303) ·
-  `testrun/` — 16 scripts (+1052). See `git diff --stat 611aabd7ba..HEAD`
+* **Diff vs. base**: `src/` — 43 files, +2648/−47 · `docs/ro-ro/` — 4 files (+1366) ·
+  `testrun/` — 16 scripts (+1084). See `git diff --stat 611aabd7ba..HEAD`
+* **Commits**: 34 commits on `feature/road-veh-transport` since `611aabd7ba`
 * **Milestones**: the implementation specification plans M1–M8; the work that was added while
   reviewing (M9 articulated vehicles, M10 selection criteria, M10b–d the settings window and the
-  slot criterion, M11/M11b fixes) is described in its chapter 11 and appendix D
+  slot criterion, M11/M11b fixes, M11c weight/appearance/carried-vehicle list) is described in its
+  chapter 11 and appendix D
 
 ## How it works from the player's point of view
 
@@ -77,6 +79,21 @@ only road vehicles for the next stop"), and a waiting/carried road vehicle shows
 *"Waiting to be transported" / "Being transported"*; a carrier shows how many road vehicles it
 currently holds.
 
+Carried road vehicles are visible from the carrier's side too:
+
+* the carrying vehicle part is drawn with its **"loaded" appearance** (the same graphics a full
+  cargo would use: the default "half the capacity is loaded" rule for trains, and the
+  `stored * totalsets / capacity` rule for NewGRF sets). Default ships and aircraft have no
+  loaded/unloaded variant, so nothing changes visually for them;
+* the carrier's **detail window lists** what it carries — the train "vehicles" tab ends with a
+  *Carried road vehicles:* section (that tab scrolls), ships and aircraft get one at the bottom of
+  their details panel (the window grows and shrinks with the number of vehicles on board);
+* a train's consist **weighs more** while it carries road vehicles (they are added to the consist
+  weight, so acceleration, running cost, bridge limits, and the "performance" tab all see them).
+  `rvtransport state <train>` prints `carried=`/`total_incl_carried=`/`own=`. Ships and aircraft
+  have no cached consist weight in this engine, so for them the weight only matters for the
+  capacity check when loading.
+
 Behavioural notes:
 
 * **Matching is a condition**: *"Only road vehicles for the next stop"* is evaluated like a
@@ -115,7 +132,7 @@ Run it from the build directory (so that `lang/` and `baseset/` are found), for 
 ## Savegame compatibility
 
 The feature uses JGRPP's extended savegame feature mechanism (`XSLFI_ROAD_VEH_TRANSPORT`,
-version 1) and does **not** bump `SAVEGAME_VERSION`:
+version 3) and does **not** bump `SAVEGAME_VERSION`:
 
 * **0.73.1 savegames load fine** (new fields default to "unused"), verified against a savegame
   written by a pristine 0.73.1 build;
@@ -176,7 +193,7 @@ config in `build/roro-test.cfg` and a savegame in `build/save/`; adapt the paths
 | `verify_oldsave.ps1` | a pristine 0.73.1 build writes a savegame, this branch loads it | PASS |
 | `m1_verify.ps1` | self save/load round-trip | PASS |
 | `smoke_m2a.ps1` | empty map + `rvtransport` commands, crash watch | PASS |
-| `verify_attach.ps1` | forced attach/detach transactions and weight accounting | PASS |
+| `verify_attach.ps1` | forced attach/detach transactions, the carrying list, and weight accounting (the carrier's consist weight must include the carried vehicle) | PASS |
 | `verify_intransit.ps1` | carried state survives save/load, then unloads | PASS |
 | `verify_sim.ps1` | waiting → station scan → load chain on a real map | PASS |
 | `verify_user_save.ps1` | order command chain (`load`/`unload`/`dest`) | PASS |
@@ -202,9 +219,6 @@ path is exercised through `rvtransport release` (the same `RVTransportForceRelea
 
 Work that is deliberately **not** in this branch yet:
 
-* **No "carried vehicles" list in the vehicle detail window** — a carrier's status line shows how
-  many road vehicles it holds, but the individual vehicles can only be inspected through
-  `rvtransport list`/`state` for now.
 * **A road vehicle which is carried when its carrier is destroyed is deleted outright**, so it never
   shows a wreck of its own (the wreck disappears together with the carrier's). Walking through a real
   crash confirms that the effect matches the design, just without that intermediate picture.

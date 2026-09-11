@@ -18,6 +18,7 @@
 #include "zoom_func.h"
 #include "settings_type.h"
 #include "core/backup_type.hpp"
+#include "roadveh_transport.h"
 
 #include "table/strings.h"
 
@@ -412,6 +413,14 @@ int GetTrainDetailsWndVScroll(VehicleID veh_id, TrainDetailsWindowTabs det_tab)
 			if (length > (uint)ScaleSpriteTrad(TRAIN_DETAILS_MAX_INDENT)) num++;
 		}
 		if (det_tab == 1) num += 2 * Train::Get(veh_id)->tcache.cached_num_engines;
+
+		/* RoRo: the "vehicles" tab also lists the road vehicles this train carries (a header line and
+		 * one line per road vehicle). */
+		if (det_tab == TDW_TAB_INFO) {
+			std::vector<const Vehicle *> carried;
+			RVTransportGetCarriedVehicles(Vehicle::Get(veh_id), carried);
+			if (!carried.empty()) num += carried.size() + 1;
+		}
 	}
 
 	return num;
@@ -510,6 +519,26 @@ void DrawTrainDetails(const Train *v, const Rect &r, int vscroll_pos, uint16_t v
 					line_number++;
 				}
 				vscroll_pos--;
+			}
+		}
+
+		/* RoRo: list the road vehicles this train carries after its own vehicles. */
+		if (det_tab == TDW_TAB_INFO) {
+			std::vector<const Vehicle *> carried;
+			RVTransportGetCarriedVehicles(Vehicle::Get(v->index), carried);
+			if (!carried.empty()) {
+				if (vscroll_pos <= 0 && vscroll_pos > -vscroll_cap) {
+					DrawString(r.left, r.right, r.top - line_height * vscroll_pos + text_y_offset, STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLES, TextColour::LightBlue);
+				}
+				vscroll_pos--;
+				for (const Vehicle *rv : carried) {
+					if (vscroll_pos <= 0 && vscroll_pos > -vscroll_cap) {
+						int py = r.top - line_height * vscroll_pos + text_y_offset;
+						GfxFillRect(r.WithY(py - WidgetDimensions::scaled.matrix.top - 1, py - WidgetDimensions::scaled.matrix.top), GetColourGradient(Colours::Grey, Shade::Light));
+						DrawString(r.left + WidgetDimensions::scaled.framerect.left, r.right, py, GetString(STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLE, rv->index));
+					}
+					vscroll_pos--;
+				}
 			}
 		}
 	} else if (det_tab == TDW_TAB_PERF) {
