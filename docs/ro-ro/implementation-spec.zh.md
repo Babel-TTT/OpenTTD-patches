@@ -246,7 +246,7 @@
 | **M10d** | **加入"路签"判据**（对齐 px-patch 的 `MOF_COUPLE_SLOT`：候选必须是该路签的占用者）；**移除"声明目的地"判据**（多个卸货计划时只读第一条，指代不清） | `verify_slot.ps1` PASS |
 | **M11** | **评审实测 5 个问题的修复**：订单行字符串参数错配（`(invalid parameter)`，亦为那次崩溃最可信根因）、直通站单侧被占不能卸（改用站点自身的泊位/入口记账 + `Enter()` 记账配对）、卸载不区分车的调度（只卸"自己声明在本站下车"的车）、设置窗口按钮无交互反馈（改用 `OnRealtimeTick()` 轮询快照）、"卸不下就直接开走"补成可选的对称等待 | 全量回归 12 脚本全绿、0 断言 |
 | **M11b** | **等待状态在改命令后不消失**：跳到下一条调度/命令回库时清掉 `RVTF_WAITING` 与随之的 `Stopped`（放在 `RoadVehController()` 的停止判定之前，与进入等待的 `Vehicle::BeginLoading()` 条件对称） | 全量回归全绿；待评审复测 |
-| **M11c** | **重量记账 + 载重外观 + 载运清单**（评审实测反馈的三点）：①被运载车辆计入**载体自重**（`RVTransportGetCarriedWeightTonnes()` → `GroundVehicle::CargoChanged()`，装卸后 `Train::ConsistChanged(CCF_LOADUNLOAD)` 重算）；②载体"看起来装满了"（原版火车按"货物过半即满"、NewGRF 车辆集按 `stored*totalsets/capacity`，只要该节载有道路载具就取满载图）；③**载运清单**：载体详情窗口列出所载车辆（火车在"车辆"页末尾、可滚动，船/机在详情面板底部、窗口高度自动增减） | `verify_attach.ps1` 重量断言 PASS（装卸前后 `carried=`/`total_incl_carried=`/`own=`）+ 全量回归 12 脚本 |
+| **M11c** | **重量记账 + 载重外观 + 载运清单**（评审实测反馈的三点）：①被运载车辆计入**载体自重**（`RVTransportGetCarriedWeightTonnes()` → `GroundVehicle::CargoChanged()`，装卸后 `Train::MarkDirty()` 重算）；②载体"看起来装满了"（原版火车按"货物过半即满"、NewGRF 车辆集按 `stored*totalsets/capacity`，另外从**货物量变量 0x3C/0x3D**取图的车辆集也会读成满载；只要该节载有道路载具就取满载图）；③**载运清单**：载体详情窗口列出所载车辆（火车在"信息"页末尾、可滚动，船/机在详情面板底部、窗口高度自动增减）。**附带修掉一次必崩**（详情窗"信息"页：循环把形参 `v` 走到 nullptr 后仍被使用，见 D.5 第 5 条） | `verify_attach.ps1` 重量断言 PASS（装卸前后 `carried=`/`total_incl_carried=`/`own=`）+ `verify_details.ps1` 行数记账 PASS + 全量回归 13 脚本 |
 
 追加项共同的收尾约束（与 M8 一致）：每个里程碑都要"可编译 + 最小场景可玩 + 回归不炸"，并同步规划/规格/手测文档。
 
@@ -313,6 +313,7 @@ M1 → M2 → M3 → M4 必须依序（各自收口即"最小可玩"增量）；
 | `verify_intransit.ps1` | **收运中存档往返**：装载 → save → 重新加载 → 检查被运载状态是否保留 → 再落地 | `RESULT: PASS (carried state survives save/load, and unload still works)` |
 | `verify_sim.ps1` | 在真实存档上跑"等待 → 站内扫描 → 装载"完整链路 | `sim: scan found=true attached=true carrying=1` |
 | `verify_attach.ps1` | 强制装载/卸载事务、载运清单与**重量记账**（`weights: carried=… total_incl_carried=… own=…`，装卸前后各读一次） | `attach`/`detach: ok`、`carrier #6 holds 1 road vehicle`、`RESULT: PASS (attach/detach, carrying list, and the carrier weight includes the carried vehicle)` |
+| `verify_details.ps1` | **载运清单的行数记账**（`rvtransport vscroll`）：装车前 `info=4 carried=0` → 装车后 `info=6 carried=1`，即"信息"页会多出表头 + 每台一行（这是清单能被滚到的前提；绘制本身需要 GUI，见 D.5 第 5 条） | `RESULT: PASS (the vehicles tab grows by the carried list: header plus one line per vehicle)` |
 | `verify_release.ps1` | **释放路径**（与载体销毁同一函数）：装载 → `rvtransport release` → 检查状态 | `RESULT: PASS (carried vehicle released and back on the road)` |
 | `verify_user_save.ps1` | 订单命令链验证（`rvtransport modify` load/unload/dest） | `modify: OK` |
 | `verify_toggle.ps1` | 勾选规则（与订单窗口共用 `RVTransportToggleOrderFlag()`） | `RESULT: PASS` |
@@ -344,6 +345,9 @@ rvtransport modify <vehicle_id> <order_nr> load|unload|dest|wait  # 走与 GUI �
 rvtransport sim <carrier_id> <rv_id>   # 一键链路仿真（等待 → 站内扫描 → 装载）
 rvtransport attach <carrier_id> <rv_id> [force]
 rvtransport detach <carrier_id> <station_id>
+rvtransport carried <carrier_id>       # 列出所载道路载具（编号/货物/重量/声明卸货站）
+rvtransport parts <carrier_id>         # 逐节：cargo/cap/stored/rv_capacity=…t/rv_used=…t/holds_rv=…
+rvtransport vscroll <train_id>         # 详情窗每页行数（含"信息"页的载运清单记账）
 rvtransport release <rv_id>      # 紧急释放（与载体销毁走同一函数）
 rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（需要地图上有车）
 ```
@@ -402,11 +406,15 @@ rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（�
   - 顺带确认：车辆窗口状态栏里"等待被运载"后面的 `1:` 不是 bug，而是"车辆窗口显示订单编号"设置附带的订单号（`STR_VEHICLE_VIEW_ORDER_NUMBER`），与等待状态无关。
 - ✅ **M11c：重量记账、载重外观与载运清单**（评审实测三点反馈）：
   1. **被运载车辆计入载体自重**：此前载体的重量完全不含车上的卡车。新增 `RVTransportGetCarriedWeightTonnes()`（按车头累加 `transported_weight`，整挂只算一次），接到 `GroundVehicle::CargoChanged()` 里——这是**引擎唯一的"重量热点"**，所有载具类型的重量缓存都在这一行产生；装卸后的重算搭载体自己的 `MarkDirty()`（它本来就会调 `CargoChanged()` / `UpdateAcceleration()` / 整列图像缓存）。**范围说明**：只有火车维护整列重量缓存（`gcache.cached_weight`，影响加速/油耗/桥重/性能页），船与飞机在本引擎里**没有**这种缓存（它们的重量不参与任何判定），因此对它们"重量"只体现在容量判定上，无需也不该另造缓存。调试命令 `rvtransport state <火车>` 现在打印 `weights: carried=Nt total_incl_carried=Nt own=Nt`，可用来直接观察。
-  2. **载体外观"装满了"**：默认火车按原版规则（`cargo.StoredCount() >= cargo_cap / 2` → `_wagon_full_adder`，`train_cmd.cpp`），NewGRF 车辆集按 `stored * totalsets / capacity`（`newgrf_engine.cpp`）——两处都加了一条"该节载有道路载具就按满载取值"的短路（`RVTransportPartHoldsRoadVehicles()`），于是只要车上装着卡车，整节车厢就画成满载外观；装卸后清掉该节的图像缓存（`InvalidateImageCache()`）并标记视口重画（火车整列由 `Train::MarkDirty()` 覆盖，船/机里非车头的节由我们额外补一刀）。**默认船只/飞机没有"满载"变体图**（它们的图与载货无关），所以对它们无可见变化——这是引擎内容所限，不是没接。
-  3. **载运清单**：载体详情窗口现在列出所载车辆（`载运的道路载具：` + 每台一行，`{VEHICLE}` = 车辆名 + 编号，可与车辆列表对上）。火车放在"车辆"页**末尾**（该页本来就有滚动条）；船/机放在详情面板**底部**，且**窗口高度随装载数自动增减**（`DrawCarriedRoadVehicles()` + `VehicleDetailsWindow::GetVehDetailsHeight()`，装卸后由 `InvalidateWindowData(WindowClass::VehicleDetails, carrier)` 触发重排）。控制台 `rvtransport carried <载体ID>` 可脚本化地列出同样内容（编号/货物/重量/声明卸货站）。
+  2. **载体外观"装满了"**：默认火车按原版规则（`cargo.StoredCount() >= cargo_cap / 2` → `_wagon_full_adder`，`train_cmd.cpp`）；NewGRF 车辆集的**真实精灵组**按 `stored * totalsets / capacity` 取图（`newgrf_engine.cpp` 的 `ResolveReal`）；**从货物量变量取图**的车辆集则读变量 `0x3C/0x3D`（"车上货量"）—— 三处都加了同一条短路（"该节载有道路载具 ⇒ 视为满载"，`RVTransportPartHoldsRoadVehicles()` / `RVTransportExtraCargoAmount()`），所以只要车上装着卡车，那一节就画成满载外观；装卸后清掉该节的图像缓存（`InvalidateImageCache()`）并标记视口重画（火车整列由 `Train::MarkDirty()` 覆盖，船/机里非车头的节由我们额外补一刀）。**默认船只/飞机没有"满载"变体图**（它们的图与载货无关），所以对它们无可见变化——这是引擎内容所限，不是没接。
+  3. **载运清单**：载体详情窗口现在列出所载车辆（`载运的道路载具：` + 每台一行，`{VEHICLE}` = 车辆名 + 编号，可与车辆列表对上）。火车放在**"信息"（车辆）页的末尾**（该页本来就有滚动条，**需要滚到底部**才看得到）；船/机放在详情面板**底部**，且**窗口高度随装载数自动增减**（`DrawCarriedRoadVehicles()` + `VehicleDetailsWindow::GetVehDetailsHeight()`，装卸后由 `InvalidateWindowData(WindowClass::VehicleDetails, carrier)` 触发重排）。行数记账（滚不滚得到、会不会画过头）由 `GetTrainDetailsWndVScroll()` 负责，`verify_details.ps1` 用 `rvtransport vscroll` 守住它。控制台 `rvtransport carried <载体ID>` 可脚本化地列出同样内容（编号/货物/重量/声明卸货站）。
   4. **不做的事**（评审确认）：**等待中的卡车仍然占着停靠点的一个停车位**——保持引擎原有语义（它在站里等，本来就该占位），不改。
-  5. 🔧 **本轮自己踩到并修掉的一次崩溃**（回归脚本抓到）：刷新被影响的那一节时，最初写了 `Vehicle::UpdateViewportDeferred()`。它跟"立即版" `Vehicle::UpdateViewport()` 不同，**在专用服务器（headless）上不会提前返回**：它把"新的视口哈希桶 + 车辆裸指针"塞进延迟队列，同时立刻改写车辆的 `coord`，而真正的哈希链更新要等队列结算（队列只在视口绘制里结算，专用服务器永远不结算）。于是哈希链与坐标不一致，这种状态下删除车辆（例如销毁载体）就会顺着失效指针写内存 —— `verify_destroy.ps1` 稳定复现（`C0000005`，写入地址 0，读档完成后约 0.9 秒）。修法：这里只做 `InvalidateImageCache()` + 立即版 `Vehicle::UpdateViewport(true)`（headless 下直接跳过），重量刷新交给 `MarkDirty()`。**结论/经验：除非能确定队列会在车辆被删除前结算，否则不要用 `UpdateViewportDeferred()`**（顺带确认 `Train::MarkDirty()` 已经会遍历整列并清图像缓存，所以最初多写的 `ConsistChanged()` 也是多余的，已去掉）。
-- ⏳ **待办**：联机 sync test；性能验收（500 台待运 + 20 节车单次装货扫描）；合并前剥离 `rvtransport` 调试命令；M11b/M11c 的人工复测（改命令后等待标记消失、载体详情窗口的载运清单与满载外观）。
+  5. 🔧 **本轮自己踩到并修掉的两次崩溃**：
+     - **（a）`verify_destroy` 稳定复现的那次**：刷新被影响的那一节时，最初写了 `Vehicle::UpdateViewportDeferred()`。它跟"立即版" `Vehicle::UpdateViewport()` 不同，**在专用服务器（headless）上不会提前返回**：它把"新的视口哈希桶 + 车辆裸指针"塞进延迟队列，同时立刻改写车辆的 `coord`，而真正的哈希链更新要等队列结算（队列只在视口绘制里结算，专用服务器永远不结算）。于是哈希链与坐标不一致，这种状态下删除车辆（例如销毁载体）就会顺着失效指针写内存（`C0000005`，写入地址 0）。修法：这里只做 `InvalidateImageCache()` + 立即版 `Vehicle::UpdateViewport(true)`（headless 下直接跳过），重量刷新交给 `MarkDirty()`。**经验：除非能确定队列会在车辆被删除前结算，否则不要用 `UpdateViewportDeferred()`**（顺带确认 `Train::MarkDirty()` 已经会遍历整列并清图像缓存，所以最初多写的 `ConsistChanged()` 也是多余的，已去掉）。
+     - **（b）评审实机崩溃 `crash-20260911T125152Z`（详情窗"信息"页必崩）**：`DrawTrainDetails()` 的**形参 `v` 被它自己的循环当成循环变量**（`for (; v != nullptr …; v = v->GetNextVehicle())`，循环结束时 `v` 必然是 `nullptr`），而我把"载运的道路载具"清单块加在了循环**之后**、却继续用 `v`：`RVTransportGetCarriedVehicles(Vehicle::Get(v->index), …)` → 对空指针读 `offsetof(Vehicle, index)`（= `0x34`）→ `C0000005` 读地址 `0x34`。**因此只要"信息"页画到编组末尾就必崩**，与车上有没有卡车无关 —— 这正是评审"找不到载运清单"的原因（清单标题在崩溃点之后才画）。定位方式是拿 exe 里的 DWARF 调试信息把崩溃日志的裸地址换算回源码（由栈底 `__tmainCRTStartup` 反推模块基址 → RVA → `addr2line -f -C -i`），直接落到 `train_gui.cpp:528`。修法：进入循环前先保存车头（`const Train *front = v;`），清单块只用 `front`；顺带这写法**天生免疫空指针**（`RVTransportGetCarriedVehicles()` 对 `nullptr` 直接返回空表）。
+     - **为什么回归没抓到（重要经验）**：12/13 个脚本跑的是 `-D` 专用服务器，**根本不画窗口**（不执行 `UpdateWindows()`，精灵数据也不加载），GUI 代码等于零覆盖。我试过用"专用服务器 + 真 blitter（`-D -b 32bpp-simple`）+ 调试命令直调绘制函数"来做 headless 绘制测试：先发现 `-D` 会把 blitter 强制设成 `null`（`-b` 必须写在 `-D` **之后**），换成真 blitter 后又发现**即使车里空着**，在专用服务器上画文字/精灵本身就会在引擎内部崩（`DrawString` → `format_buffer` 析构），所以这条路走不通，相关测试钩子已全部删除。**替代做法**：把"行数记账"这类**纯逻辑**抽出来单独守（`rvtransport vscroll` + `verify_details.ps1`），绘制部分只能靠人工看 → 见手测指引 §7。
+     - **新增调试命令（合并前剥离）**：`rvtransport vscroll <车辆>`（详情窗每页行数）、`rvtransport parts <载体>`（逐节 `cargo/cap/stored/rv_capacity=…t/rv_used=…t/holds_rv=…`，用来判断"车装在哪一节、那节能装多少吨"，也就解释了为什么某节/某车型看不到满载外观）；`testrun/probe_user_crash.ps1` 可把评审存档读进来直接打印这些信息。
+- ⏳ **待办**：联机 sync test；性能验收（500 台待运 + 20 节车单次装货扫描）；合并前剥离 `rvtransport` 调试命令；M11b/M11c 的人工复测（改命令后等待标记消失、载体详情窗"信息"页底部的载运清单、载体满载外观）。
 
 ---
 

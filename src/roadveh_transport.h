@@ -151,6 +151,13 @@ uint32_t RVTransportGetCarriedWeightTonnes(const Vehicle *carrier);
 bool RVTransportPartHoldsRoadVehicles(const Vehicle *part);
 
 /**
+ * Cargo units a carrier part should report on top of what it really carries, so that NewGRF sets
+ * which derive their sprites from the cargo amount also show the "loaded" appearance while the part
+ * carries road vehicles (the part is reported as full).
+ */
+uint16_t RVTransportExtraCargoAmount(const Vehicle *part);
+
+/**
  * Vehicle whose position represents this vehicle on the map: a carried road vehicle is where its
  * carrier is. Used by the camera/viewport follow ("centre on vehicle") and other actions which
  * need the position of a vehicle.

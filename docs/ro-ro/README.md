@@ -86,13 +86,20 @@ Carried road vehicles are visible from the carrier's side too:
   `stored * totalsets / capacity` rule for NewGRF sets). Default ships and aircraft have no
   loaded/unloaded variant, so nothing changes visually for them;
 * the carrier's **detail window lists** what it carries — the train "vehicles" tab ends with a
-  *Carried road vehicles:* section (that tab scrolls), ships and aircraft get one at the bottom of
-  their details panel (the window grows and shrinks with the number of vehicles on board);
+  *Carried road vehicles:* section (scroll that tab to the bottom; its scrollbar accounts for the
+  extra lines), ships and aircraft get one at the bottom of their details panel (the window grows
+  and shrinks with the number of vehicles on board);
 * a train's consist **weighs more** while it carries road vehicles (they are added to the consist
   weight, so acceleration, running cost, bridge limits, and the "performance" tab all see them).
   `rvtransport state <train>` prints `carried=`/`total_incl_carried=`/`own=`. Ships and aircraft
   have no cached consist weight in this engine, so for them the weight only matters for the
-  capacity check when loading.
+  capacity check when loading;
+* which part a vehicle ends up on is decided by **weight**: a part can take a road vehicle when
+  `cargo_cap × (cargo unit weight) / 16` tonnes is at least the vehicle's empty weight
+  (`rvtransport parts <carrier>` prints this as `rv_capacity`/`rv_used`). Passenger carriages are
+  usually far too light for a truck, so a truck normally rides on a freight wagon. The "loaded"
+  appearance only changes on the part that actually holds a vehicle, and only if that vehicle set
+  has separate empty/loaded graphics.
 
 Behavioural notes:
 
@@ -172,6 +179,9 @@ rvtransport criteria <vehicle> <order> loadstate any|empty|full
 rvtransport criteria <vehicle> <order> cargo any|<cargo_id> [carrying]
 rvtransport criteria <vehicle> <order> minwait <days>
 rvtransport criteria <vehicle> <order> slot any|<slot_id>
+rvtransport carried <vehicle>                       # the road vehicles a carrier holds
+rvtransport parts <vehicle>                         # per carrier part: cargo/cap/stored/rv_capacity/rv_used/holds_rv
+rvtransport vscroll <vehicle>                       # line count of every tab of the train details window
 rvtransport mkslot <name> [max_occupancy]   # create a road vehicle slot (debug)
 rvtransport slot <vehicle> <slot_id> on|off # add/remove a vehicle from a slot (debug)
 rvtransport attach|detach <carrier> <rv|station> [force]  # run the load/unload transactions directly
@@ -194,6 +204,7 @@ config in `build/roro-test.cfg` and a savegame in `build/save/`; adapt the paths
 | `m1_verify.ps1` | self save/load round-trip | PASS |
 | `smoke_m2a.ps1` | empty map + `rvtransport` commands, crash watch | PASS |
 | `verify_attach.ps1` | forced attach/detach transactions, the carrying list, and weight accounting (the carrier's consist weight must include the carried vehicle) | PASS |
+| `verify_details.ps1` | the line accounting behind the details window's carried-vehicle list (`rvtransport vscroll`: the "vehicles" tab grows by a header plus one line per vehicle) | PASS |
 | `verify_intransit.ps1` | carried state survives save/load, then unloads | PASS |
 | `verify_sim.ps1` | waiting → station scan → load chain on a real map | PASS |
 | `verify_user_save.ps1` | order command chain (`load`/`unload`/`dest`) | PASS |

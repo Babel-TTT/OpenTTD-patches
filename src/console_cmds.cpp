@@ -4892,6 +4892,49 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		return true;
 	}
 
+	if (StrEqualsIgnoreCase(argv[1], "parts")) {
+		/* Show every part of a carrier: what cargo it holds, how many tonnes of road vehicles it can
+		 * take and whether it currently holds any (this is what decides which part a road vehicle is
+		 * loaded onto, and therefore whose sprite changes to the "loaded" one). */
+		if (argv.size() != 3) return false;
+		Vehicle *carrier = get_veh(argv[2]);
+		if (carrier == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		if (carrier->type == VehicleType::Road) { IConsolePrint(CC_ERROR, "a road vehicle is not a carrier"); return true; }
+
+		uint n = 0;
+		for (const Vehicle *u = carrier->First(); u != nullptr; u = u->Next(), n++) {
+			IConsolePrint(CC_DEFAULT, "  part {}: #{} cargo={} cap={} stored={} rv_capacity={}t rv_used={}t holds_rv={}",
+					n, u->index.base(), (int)u->cargo_type, u->cargo_cap, u->cargo.StoredCount(),
+					RVTransportGetPartCapacityTonnes(u), RVTransportGetPartUsedTonnes(u),
+					RVTransportPartHoldsRoadVehicles(u));
+		}
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "vscroll")) {
+		/* Verification helper: report the number of lines each tab of the train details window
+		 * contains. This is the logic which decides how far the list can be scrolled, so it is what
+		 * makes the carried road vehicles (listed at the end of the "vehicles" tab) reachable; it
+		 * does not draw anything, so it also works on a dedicated server. */
+		if (argv.size() != 3) return false;
+		Vehicle *v = get_veh(argv[2]);
+		if (v == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		if (v->type != VehicleType::Train) { IConsolePrint(CC_ERROR, "not a train (only trains use the matrix/scrollbar)"); return true; }
+
+		extern int GetTrainDetailsWndVScroll(VehicleID veh_id, TrainDetailsWindowTabs det_tab);
+		std::vector<const Vehicle *> carried;
+		RVTransportGetCarriedVehicles(v->First(), carried);
+		IConsolePrint(CC_DEFAULT, "vscroll: train #{} lines per tab: cargo={} info={} capacity={} totals={} perf={}, carried={}",
+				v->First()->index.base(),
+				GetTrainDetailsWndVScroll(v->First()->index, TDW_TAB_CARGO),
+				GetTrainDetailsWndVScroll(v->First()->index, TDW_TAB_INFO),
+				GetTrainDetailsWndVScroll(v->First()->index, TDW_TAB_CAPACITY),
+				GetTrainDetailsWndVScroll(v->First()->index, TDW_TAB_TOTALS),
+				GetTrainDetailsWndVScroll(v->First()->index, TDW_TAB_PERF),
+				carried.size());
+		return true;
+	}
+
 	if (StrEqualsIgnoreCase(argv[1], "release")) {
 		/* Emergency release of a carried road vehicle (same code path used when a carrier is destroyed). */
 		if (argv.size() != 3) return false;

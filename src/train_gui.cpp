@@ -447,6 +447,8 @@ void DrawTrainDetails(const Train *v, const Rect &r, int vscroll_pos, uint16_t v
 		Direction dir = rtl ? Direction::E : Direction::W;
 		int x = rtl ? r.right : r.left;
 		uint8_t line_number = 0;
+		/* The loop below advances 'v' itself, so keep the front vehicle for the code after it. */
+		const Train *front = v;
 		for (; v != nullptr && vscroll_pos > -vscroll_cap; v = v->GetNextVehicle()) {
 			GetCargoSummaryOfArticulatedVehicle(v, _cargo_summary);
 
@@ -525,7 +527,7 @@ void DrawTrainDetails(const Train *v, const Rect &r, int vscroll_pos, uint16_t v
 		/* RoRo: list the road vehicles this train carries after its own vehicles. */
 		if (det_tab == TDW_TAB_INFO) {
 			std::vector<const Vehicle *> carried;
-			RVTransportGetCarriedVehicles(Vehicle::Get(v->index), carried);
+			RVTransportGetCarriedVehicles(front, carried);
 			if (!carried.empty()) {
 				if (vscroll_pos <= 0 && vscroll_pos > -vscroll_cap) {
 					DrawString(r.left, r.right, r.top - line_height * vscroll_pos + text_y_offset, STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLES, TextColour::LightBlue);
