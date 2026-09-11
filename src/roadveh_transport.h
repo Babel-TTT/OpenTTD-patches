@@ -165,6 +165,12 @@ void RVTransportDebugStation(const Vehicle *rv, const Station *st);
 void RVTransportDebugDump();
 
 /**
+ * Debug (RoRo): is this vehicle still in any station's list of vehicles which are loading there?
+ * (It must not be, once it has been carried away from that station.)
+ */
+bool RVTransportDebugStationLists(const Vehicle *v);
+
+/**
  * Vehicle whose position represents this vehicle on the map: a carried road vehicle is where its
  * carrier is. Used by the camera/viewport follow ("centre on vehicle") and other actions which
  * need the position of a vehicle.

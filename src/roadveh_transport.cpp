@@ -13,6 +13,7 @@
 
 #include "cargotype.h"
 #include "console_func.h"
+#include "economy_base.h"   // CargoPayment must be complete: the station stop of a carried vehicle deletes its payment
 #include "order_func.h"
 #include "strings_func.h"
 #include "town.h"
@@ -312,6 +313,39 @@ static void RVTransportRefreshCarrier(Vehicle *carrier, Vehicle *part)
 }
 
 /**
+ * Finish the station stop of a road vehicle which is about to be carried away by a carrier.
+ *
+ * A road vehicle which arrives at a station runs Vehicle::BeginLoading(), which registers it in the
+ * station's list of loading vehicles (PrepareUnload()) and creates a CargoPayment for it. The engine
+ * undoes both in Vehicle::LeaveStation() and Vehicle::PreDestructor() - and a vehicle which is loaded
+ * onto a carrier never gets to run either of them, because it never leaves the station normally.
+ * Left behind, the station keeps processing the vehicle as a loading one (which asserts as soon as its
+ * current order has moved on) and the next station it arrives at asserts that it has no cargo payment
+ * yet. So do the same bookkeeping here.
+ *
+ * @param rv The road vehicle (front vehicle) being carried away.
+ */
+static void RVTransportLeaveBoardingStation(Vehicle *rv)
+{
+	if (rv == nullptr) return;
+
+	if (Station::IsValidID(rv->last_station_visited)) {
+		Station *st = Station::Get(rv->last_station_visited);
+		st->loading_vehicles.erase(std::remove(st->loading_vehicles.begin(), st->loading_vehicles.end(), rv), st->loading_vehicles.end());
+		HideFillingPercent(&rv->fill_percent_te_id);
+		rv->CancelReservation(StationID::Invalid(), st);
+	}
+
+	/* Settles the route profit earned so far and clears the pointer (~CargoPayment). */
+	delete rv->cargo_payment;
+	dbg_assert(rv->cargo_payment == nullptr);
+
+	/* The vehicle is not loading anywhere at the moment. */
+	rv->load_unload_ticks = 0;
+	rv->vehicle_flags.Reset(VehicleFlag::LoadingFinished);
+}
+
+/**
  * Move a carried road vehicle on to its next order.
  *
  * A road vehicle which is loaded onto a carrier has done its "wait to be transported" order, so it is
@@ -384,17 +418,10 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 	 * stop is recomputed without it. */
 	if (!IsBayRoadStopTile(rv->tile)) RVTransportReleaseRoadStop(rv);
 
-	/* The vehicle is no longer at the station it was picked up at, so take it out of that station's
-	 * list of vehicles which are loading there (the engine only does that in Vehicle::LeaveStation(),
-	 * which the vehicle never got to run - it was loaded while it was waiting). Leaving it in the list
-	 * would make the station process it as a loading vehicle as soon as it is put back on the road,
-	 * which asserts because its current order has moved on by then. */
-	if (Station::IsValidID(rv->last_station_visited)) {
-		Station *st = Station::Get(rv->last_station_visited);
-		st->loading_vehicles.erase(std::remove(st->loading_vehicles.begin(), st->loading_vehicles.end(), rv), st->loading_vehicles.end());
-		HideFillingPercent(&rv->fill_percent_te_id);
-		rv->CancelReservation(StationID::Invalid(), st);
-	}
+	/* The vehicle is no longer at the station it was picked up at: finish that station stop for it, so
+	 * that nothing is left behind there (the engine only does this in Vehicle::LeaveStation(), which
+	 * the vehicle never got to run - it was loaded while it was waiting). */
+	RVTransportLeaveBoardingStation(rv);
 
 	/* The road vehicle has done its "wait to be transported" order: move it on to its next one, which
 	 * is where it wants to get off. */
@@ -568,6 +595,18 @@ void RVTransportDebugDump()
 			RVTransportDebugStation(first, st);
 		}
 	}
+}
+
+/**
+ * Debug (RoRo): is this vehicle still in any station's list of vehicles which are loading there?
+ */
+bool RVTransportDebugStationLists(const Vehicle *v)
+{
+	if (v == nullptr) return false;
+	for (const Station *st : Station::Iterate()) {
+		if (std::find(st->loading_vehicles.begin(), st->loading_vehicles.end(), v) != st->loading_vehicles.end()) return true;
+	}
+	return false;
 }
 
 /**
@@ -863,7 +902,10 @@ void RVTransportValidateAfterLoad()
 		if (carrier != nullptr && carrier->type != VehicleType::Road && carrier->First() == carrier) {
 			/* Carried as expected. A savegame written before the road vehicle's order was advanced when
 			 * it was loaded still has the "wait to be transported" order as its current order: catch
-			 * up, so that it can be unloaded at the station it wants to get off at. */
+			 * up. The station stop of the vehicle is finished here as well - a savegame can also have
+			 * been written before that bookkeeping existed, in which case the station it was picked up
+			 * at still lists it as a loading vehicle and it still holds a cargo payment. */
+			RVTransportLeaveBoardingStation(v);
 			if ((v->current_order.GetRVTransportFlags() & ORVTF_LOAD) != 0) RVTransportAdvanceCarriedVehicleOrder(v);
 			continue; // carried as expected
 		}

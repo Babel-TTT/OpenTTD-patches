@@ -4992,6 +4992,20 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		return true;
 	}
 
+	if (StrEqualsIgnoreCase(argv[1], "invariants")) {
+		/* Debug: the state a carried road vehicle must not have left behind at the station it was
+		 * picked up at (see RVTransportLeaveBoardingStation()). */
+		if (argv.size() != 3) return false;
+		Vehicle *v = get_veh(argv[2]);
+		if (v == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		IConsolePrint(CC_DEFAULT, "invariants: vehicle #{} in a station loading list={} cargo_payment={} load_unload_ticks={} loading_finished={} current order type={} carried={}",
+				v->index.base(), RVTransportDebugStationLists(v), (v->cargo_payment != nullptr),
+				v->load_unload_ticks, v->vehicle_flags.Test(VehicleFlag::LoadingFinished),
+				(int)v->current_order.GetType(),
+				((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) != 0));
+		return true;
+	}
+
 	if (StrEqualsIgnoreCase(argv[1], "parts")) {
 		/* Show every part of a carrier: what cargo it holds, how many tonnes of road vehicles it can
 		 * take and whether it currently holds any (this is what decides which part a road vehicle is
