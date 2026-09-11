@@ -30,7 +30,7 @@ $cmds = @(
     'rvtransport attach firsttrain firstrv force',
     'rvtransport state firstrv',
     'rvtransport list',
-    'rvtransport detach firsttrain 0',
+    'rvtransport detach firsttrain 0 force',
     'rvtransport state firstrv',
     'quit'
 )

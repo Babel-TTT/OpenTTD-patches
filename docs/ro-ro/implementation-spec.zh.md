@@ -357,6 +357,14 @@ rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（�
   - **移除"声明目的地"判据**：`RVTransportGetDeclaredDestination()` 读的是卡车调度里**第一条**带"在此被卸下"的车站调度，多个卸货计划时只有第一个生效（评审判定指代不清）——GUI 行、MOF、控制台键、订单行显示全部移除；**存档字段 `rv_transport_dest_station` 保留为保留位**（feature v2 存档仍能加载）。"只装载去下一站的道路载具"开关（`ORVTF_MATCH_DEST`）保留，覆盖常见用法。
   - **调试命令**（供自动化验证，合并前剥离）：`rvtransport mkslot <名字> [上限]`（建道路载具路签）、`rvtransport slot <车辆> <路签> on|off`（加入/移出路签）；`rvtransport state` 现在还会列出车辆持有的路签。
   - **验证**：新增 `testrun/verify_slot.ps1` → **PASS**（非法路签被拒 → 建立路签并保存 → 未持有时 `scan found=false` → 加入后 `found=true` → 移出后 `found=false`）；全量回归 12 个脚本全绿、0 断言。
+- ✅ **M11：评审实测 5 个问题的修复**（含一次**崩溃**）：
+  1. **订单行字符串显示 `(invalid parameter)`（并极可能是那次崩溃的根因）**：我给 `{STRING}` 参数传了**已格式化的字符串**（先 `GetString(STR_TRACE_RESTRICT_SLOT_NAME, id)` 再当作参数），而引擎的参数系统只接受 StringID / 数值——参数类型不匹配时，格式化器会把栈上的垃圾当成 StringID 去查表（`crash-20260911T050825Z.log` 正是 `C0000005 read` 于 UI 线程，且命令日志显示崩溃前在暂停状态下反复切换订单字段）。修法：**只用完整字符串 + 数值/自定义参数**，并用 `format_target::append(std::string)` 直接追加成品文本（订单行的货物/路签/最短等待/载货状态全部改成这种写法）；`STR_ORDER_RV_SLOT` 改为 `{TRSLOT}` 参数。
+  2. **直通站单侧被占就不能卸**：原来要求"整格没有车辆"。现改为按**路站自身的记账**判断可否放下：泊位站用 `HasFreeBay()` + 空闲入口 + 整格无车（且铰接车禁用泊位站）；直通站按**将使用的那个入口**（`GetEntry(dd)`）的 `occupied + 车长 <= length` 判断 —— 对向有空位即可卸。放置完成后调用 `RoadStop::Enter()` 让站点记账与引擎后续的 `Leave()` 成对（此前只在装载侧做了重建，卸载侧没记账）。
+  3. **卸载不区分车的调度**：现在只卸"**自己的调度说要在本站被卸下**"的车（`RVTransportGetDeclaredDestination() == 本站`；**没有任何声明**的车仍会在载体的卸货站被卸下，否则它永远下不来）；调试命令可加 `force` 强制卸全部（`rvtransport detach <载体> <车站> [force]`）。
+  4. **窗口前四行按钮没有交互反馈**：`CmdModifyOrder` 是**异步**执行的，且不会使本窗口失效。现在窗口用 `OnRealtimeTick()`（暂停时也会跑）轮询快照，值一变就 `UpdateWidgetTexts()` + `SetDirty()`。
+  5. **卸不下时列车直接开走**（评审提问）：这是原实现的"刻意回退"——找不到空路站格就留在车上、下次停靠再试，但载体不会因此等待、也不提示。现在补成**对称的可选行为**：载体订单勾了**"等待道路载具"**时，若还有"想在本站下车"的车没下来，就继续等（`finished_loading=false`，语义同 Full load，**无限等**）；不勾仍然是"下次再试"。
+  - **验证**：全量回归 12 个脚本全绿、0 断言（`verify_attach` / `verify_intransit` 的卸载改用调试 `force`，因为它们的测试车站不是车辆自己声明的卸货站——顺带印证了新规则生效）。
+  - ⚠ 崩溃日志（`C:\Users\11936\Documents\OpenTTD\crash-20260911T050825Z.log`）没有符号无法逐帧定位；上述参数错配是当前最可信的根因并已消除，**若再复现请把新日志给我**（新的崩溃日志会带同样的栈）。
 - ⏳ **待办**：铰接车实机走查（需含铰接车的 NewGRF，见 M9）；车辆详情窗口里的"载运清单"；船/机载体实机走查（手测步骤见 `manual-test-guide.zh.md` 第 6 节）；载体事故销毁路径实机走查；**等待中的卡车仍占着停靠点 bay**（是否让等待时也释放 bay 待定）；联机 sync test；性能验收；合并前剥离 `rvtransport` 调试命令。
 
 ---

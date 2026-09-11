@@ -4503,7 +4503,7 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		IConsolePrint(CC_HELP, "  rvtransport mkslot <name> [max_occupancy]   # create a road vehicle slot");
 		IConsolePrint(CC_HELP, "  rvtransport slot <vehicle_id> <slot_id> on|off");
 		IConsolePrint(CC_HELP, "  rvtransport release <rv_id>");
-		IConsolePrint(CC_HELP, "  rvtransport detach <carrier_id> <station_id>");
+		IConsolePrint(CC_HELP, "  rvtransport detach <carrier_id> <station_id> [force]");
 		IConsolePrint(CC_HELP, "  rvtransport selftest");
 		return true;
 	}
@@ -4551,6 +4551,8 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 				parts++;
 			}
 			IConsolePrint(CC_DEFAULT, "  weights: unladen={}t on_board={} parts={}", RVTransportGetVehicleWeightTonnes(v), RVTransportCountOnCarrier(v), parts);
+			IConsolePrint(CC_DEFAULT, "  declared_dest={} (station the road vehicle itself wants to be dropped at)",
+					RVTransportGetDeclaredDestination(v).base());
 			std::vector<TraceRestrictSlotID> held_slots;
 			TraceRestrictGetVehicleSlots(v->index, held_slots);
 			for (const TraceRestrictSlotID slot : held_slots) {
@@ -4889,13 +4891,14 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 	}
 
 	if (StrEqualsIgnoreCase(argv[1], "detach")) {
-		if (argv.size() != 4) return false;
+		if (argv.size() < 4) return false;
 		Vehicle *carrier = get_veh(argv[2]);
 		Station *st = Station::GetIfValid(ParseType<StationID>(argv[3]).value_or(StationID::Invalid()));
 		if (carrier == nullptr || st == nullptr) { IConsolePrint(CC_ERROR, "vehicle or station not found"); return true; }
+		const bool force = argv.size() > 4 && StrEqualsIgnoreCase(argv[4], "force");
 		carrier = carrier->First();
-		const bool ok = RVTransportDetachAtStation(carrier, st);
-		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "detach: {} (on board={})", ok ? "ok" : "failed", RVTransportCountOnCarrier(carrier));
+		const bool ok = RVTransportDetachAtStation(carrier, st, force);
+		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "detach: {} (on board={}, force={})", ok ? "ok" : "failed", RVTransportCountOnCarrier(carrier), force);
 		return true;
 	}
 

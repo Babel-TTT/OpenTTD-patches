@@ -2410,6 +2410,15 @@ static void LoadUnloadVehicle(Vehicle *front)
 			}
 		}
 
+		/* RoRo: the same waiting order keeps the carrier waiting until the road vehicles which want to
+		 * get off here have actually got off; the station may have had no free road stop tile when it
+		 * arrived. Without this, the carrier would drive on and try again on its next visit. */
+		if (const uint8_t rv_order = front->current_order.GetRVTransportFlags(); (rv_order & ORVTF_WAIT) != 0 && (rv_order & ORVTF_UNLOAD) != 0) {
+			if (RVTransportCountWantingUnloadHere(front, st) > 0) {
+				finished_loading = false;
+			}
+		}
+
 		/* Refresh next hop stats if we're full loading to make the links
 		 * known to the distribution algorithm and allow cargo to be sent
 		 * along them. Otherwise the vehicle could wait for cargo

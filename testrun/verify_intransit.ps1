@@ -52,7 +52,7 @@ if (-not (Test-Path $made)) { Write-Output 'FAIL: savegame was not written'; exi
 Write-Output ("saved: {0} bytes" -f (Get-Item $made).Length)
 
 Write-Output '== phase 2: reload it and check the carried state survived =='
-$log2 = Run-Ottd "-c `"$cfg`" -D -g `"$made`"" @('rvtransport state firstrv', 'rvtransport list', 'rvtransport detach firsttrain 0', 'rvtransport state firstrv', 'quit') 45 'log_intransit2.txt'
+$log2 = Run-Ottd "-c `"$cfg`" -D -g `"$made`"" @('rvtransport state firstrv', 'rvtransport list', 'rvtransport detach firsttrain 0 force', 'rvtransport state firstrv', 'quit') 45 'log_intransit2.txt'
 $log2 -split "`r?`n" | Where-Object { $_ -match 'vehicle #|rv #|carrying|detach:|Assertion|crash|corrupt|failed' } | Select-Object -First 15 | ForEach-Object { Write-Output $_ }
 
 $crash = ($log2 -match 'Assertion|corrupt|failed to load')

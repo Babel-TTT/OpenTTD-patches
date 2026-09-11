@@ -92,8 +92,19 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force 
 /** Try to attach a road vehicle to any suitable part of the carrier. */
 bool RVTransportAttachAuto(Vehicle *carrier, Vehicle *rv, bool force = false);
 
-/** Unload all road vehicles carried by this carrier at the given station. Returns true if anything was unloaded. */
-bool RVTransportDetachAtStation(Vehicle *carrier, Station *st);
+/**
+ * Unload road vehicles carried by this carrier at the given station. Returns true if anything was unloaded.
+ * @param force unload every carried road vehicle, even the ones which want to get off somewhere else
+ *        (debug only).
+ */
+bool RVTransportDetachAtStation(Vehicle *carrier, Station *st, bool force = false);
+
+/**
+ * How many road vehicles this carrier still carries which want to be dropped at this station (their
+ * own "be unloaded here" order, or no declared destination at all). Used to keep a carrier which was
+ * told to wait for road vehicles waiting until the station has room for them.
+ */
+uint32_t RVTransportCountWantingUnloadHere(const Vehicle *carrier, const Station *st);
 
 /**
  * Find the first road vehicle waiting to be transported at this station which satisfies the

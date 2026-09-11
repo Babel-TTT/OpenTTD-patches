@@ -4735,9 +4735,9 @@ STR_ORDER_DROP_RV_MIN_WAIT                                      :Wait at least: 
 STR_ORDER_RV_MIN_WAIT_NONE                                      :no minimum
 STR_ORDER_RV_MIN_WAIT_DAYS                                      :{NUM} day{P "" s}
 STR_ORDER_DROP_RV_MIN_WAIT_NUM                                  :Wait at least: {NUM} day{P "" s}
-STR_ORDER_RV_CARGO_CAN_CARRY                                    :Cargo: {STRING}
-STR_ORDER_RV_CARGO_IS_CARRYING                                  :Carrying: {STRING}
-STR_ORDER_RV_SLOT                                               :Slot: {STRING}
+STR_ORDER_RV_CARGO_CAN_CARRY                                    :Cargo: 
+STR_ORDER_RV_CARGO_IS_CARRYING                                  :Carrying: 
+STR_ORDER_RV_SLOT                                               :Slot: {TRSLOT}
 STR_ORDER_DROP_RV_TRANSPORT                                     :Road vehicle transport...
 STR_RV_TRANSPORT_CRITERIA_CAPTION                               :Road vehicle transport
 STR_RV_TRANSPORT_CRITERIA_LOAD_STATE                            :Load state

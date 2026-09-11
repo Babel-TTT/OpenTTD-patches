@@ -501,6 +501,41 @@ private:
 	const Order *order;      ///< The order itself (used to check the window is still valid).
 	uint order_count;        ///< Number of orders the vehicle had when the window was opened.
 
+	/**
+	 * Snapshot of the settings which are shown, so that the buttons and dropdowns can be refreshed
+	 * when the order changes. The order commands are executed asynchronously, and they do not
+	 * invalidate this window, so the state is polled instead of relying on an invalidation.
+	 */
+	struct SettingsSnapshot {
+		uint8_t flags = 0;
+		uint8_t load_state = 0;
+		uint8_t cargo_mode = 0;
+		uint8_t cargo = 0;
+		uint16_t min_wait = 0;
+		uint16_t slot = 0;
+
+		bool operator==(const SettingsSnapshot &other) const
+		{
+			return this->flags == other.flags && this->load_state == other.load_state && this->cargo_mode == other.cargo_mode &&
+					this->cargo == other.cargo && this->min_wait == other.min_wait && this->slot == other.slot;
+		}
+	};
+
+	SettingsSnapshot last_settings{}; ///< Settings the widgets currently show.
+
+	/** Read the settings which the widgets should show. */
+	SettingsSnapshot GetSettings() const
+	{
+		SettingsSnapshot s;
+		s.flags = this->order->GetRVTransportFlags();
+		s.load_state = this->order->GetRVTransportLoadState();
+		s.cargo_mode = this->order->GetRVTransportCargoMode();
+		s.cargo = this->order->GetRVTransportCargo();
+		s.min_wait = this->order->GetRVTransportMinWait();
+		s.slot = this->order->GetRVTransportSlot();
+		return s;
+	}
+
 	/** Is this a road vehicle's own order (rather than a carrier's)? */
 	bool IsRoadVehicleOrder() const { return this->vehicle->type == VehicleType::Road; }
 
@@ -658,7 +693,28 @@ public:
 		this->CreateNestedTree();
 		this->FinishInitNested(v->index);
 		this->UpdateWidgetTexts();
+		this->last_settings = this->GetSettings();
 		this->owner = v->owner;
+	}
+
+	/**
+	 * Refresh the widgets when the order changed. The order commands run asynchronously and do not
+	 * invalidate this window, and the game may well be paused while the player edits, so this polls
+	 * from the realtime tick (which runs regardless of the pause state).
+	 */
+	void OnRealtimeTick([[maybe_unused]] uint delta_ms) override
+	{
+		if (!this->CheckOrderStillValid()) {
+			this->Close();
+			return;
+		}
+		this->order = this->vehicle->GetOrder(this->order_id);
+		const SettingsSnapshot current = this->GetSettings();
+		if (!(current == this->last_settings)) {
+			this->last_settings = current;
+			this->UpdateWidgetTexts();
+			this->SetDirty();
+		}
 	}
 
 	void Close(int data = 0) override
@@ -1352,26 +1408,31 @@ void DrawOrderString(const Vehicle *v, const Order *order, int order_index, int 
 					AppendStringInPlace(line, STR_ORDER_DROP_WAIT_FOR_ROAD_VEHICLES);
 				}
 				/* RoRo: the selection criteria of a carrier's load order (they can also be set from
-				 * the game console, so show them even when the settings window is not used). */
+				 * the game console, so show them even when the settings window is not used).
+				 * Everything is appended as already formatted text: passing a formatted string where a
+				 * {STRING} parameter is expected does not work (the parameter system expects a
+				 * StringID / a number and would read garbage instead), so only complete strings and
+				 * numeric parameters are used here. */
 				if (!is_rv) {
 					if (order->GetRVTransportLoadState() != RVTLS_ANY) {
 						line.push_back(' ');
-						AppendStringInPlace(line, RVTransportLoadStateCriterionText(order->GetRVTransportLoadState()));
+						line.append(GetString(RVTransportLoadStateCriterionText(order->GetRVTransportLoadState())));
 					}
 					if (order->GetRVTransportMinWait() != 0) {
 						line.push_back(' ');
-						AppendStringInPlace(line, STR_ORDER_DROP_RV_MIN_WAIT_NUM, order->GetRVTransportMinWait());
+						line.append(GetString(STR_ORDER_DROP_RV_MIN_WAIT_NUM, order->GetRVTransportMinWait()));
 					}
 					if (order->GetRVTransportCargoMode() != RVTC_ANY && IsValidCargoType(static_cast<CargoType>(order->GetRVTransportCargo()))) {
+						const CargoSpec *cs = CargoSpec::Get(static_cast<CargoType>(order->GetRVTransportCargo()));
 						line.push_back(' ');
-						AppendStringInPlace(line, order->GetRVTransportCargoMode() == RVTC_CAN_CARRY ? STR_ORDER_RV_CARGO_CAN_CARRY : STR_ORDER_RV_CARGO_IS_CARRYING,
-								CargoSpec::Get(static_cast<CargoType>(order->GetRVTransportCargo()))->name);
+						line.append(GetString(order->GetRVTransportCargoMode() == RVTC_CAN_CARRY ? STR_ORDER_RV_CARGO_CAN_CARRY : STR_ORDER_RV_CARGO_IS_CARRYING));
+						line.append(GetString(cs->name));
 					}
 					if (order->GetRVTransportSlot() != 0) {
 						const TraceRestrictSlot *slot = TraceRestrictSlot::GetIfValid(TraceRestrictSlotID{static_cast<uint16_t>(order->GetRVTransportSlot() - 1)});
 						if (slot != nullptr) {
 							line.push_back(' ');
-							AppendStringInPlace(line, STR_ORDER_RV_SLOT, GetString(STR_TRACE_RESTRICT_SLOT_NAME, slot->index));
+							line.append(GetString(STR_ORDER_RV_SLOT, slot->index.base()));
 						}
 					}
 				}

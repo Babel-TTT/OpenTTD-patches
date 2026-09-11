@@ -259,22 +259,46 @@ bool RVTransportAttachAuto(Vehicle *carrier, Vehicle *rv, bool force)
 	return false;
 }
 
-/** Find a free road stop tile in this station plus an exit direction with road. */
-static bool FindFreeRoadStopTile(const Station *st, TileIndex &out_tile, DiagDirection &out_dd)
+/**
+ * Find a road stop tile of this station where the given road vehicle can be put back on the road,
+ * plus an exit direction which has road.
+ *
+ * The tile does not have to be empty: a drive-through stop has room per entry direction, so a tile
+ * which is occupied on one side can still take a vehicle on the other side. Whole-tile emptiness is
+ * only required for bay stops (whose bays are counted by the stop itself, but where a second vehicle
+ * on the same tile would overlap).
+ */
+static bool FindFreeRoadStopTile(const Station *st, Vehicle *rv, TileIndex &out_tile, DiagDirection &out_dd)
 {
 	for (int pass = 0; pass < 2; pass++) {
 		const TileArea &area = (pass == 0) ? st->bus_station : st->truck_station;
 		for (TileIndex t : area) {
 			if (!IsAnyRoadStopTile(t)) continue;
-			if (GetFirstVehicleOnTile(t, VehicleType::Road) != nullptr) continue;
+			RoadStop *rs = RoadStop::GetByTile(t, GetRoadStopType(t));
+			if (rs == nullptr) continue;
+
 			for (DiagDirection dd = DiagDirection::Begin; dd < DiagDirection::End; dd++) {
 				TileIndex next = TileAddByDiagDir(t, dd);
 				if (!IsValidTile(next)) continue;
-				if (IsNormalRoadTile(next) || IsAnyRoadStopTile(next)) {
-					out_tile = t;
-					out_dd = dd;
-					return true;
+				if (!IsNormalRoadTile(next) && !IsAnyRoadStopTile(next)) continue;
+
+				if (IsBayRoadStopTile(t)) {
+					/* Bay stops cannot hold articulated road vehicles, and each tile holds at most one
+					 * (the stop counts the bays, the tile itself must be free). */
+					if (rv->HasArticulatedPart()) continue;
+					if (!rs->HasFreeBay()) continue;
+					if (rs->IsEntranceBusy()) continue;
+					if (GetFirstVehicleOnTile(t, VehicleType::Road) != nullptr) continue;
+				} else {
+					/* Drive-through stop: the room of the entry this vehicle would use decides. */
+					const RoadStop::Entry &entry = rs->GetEntry(dd);
+					if (entry.GetLength() == 0) continue;
+					if (entry.GetOccupied() + static_cast<int>(RoadVehicle::From(rv)->gcache.cached_total_length) > entry.GetLength()) continue;
 				}
+
+				out_tile = t;
+				out_dd = dd;
+				return true;
 			}
 		}
 	}
@@ -285,7 +309,7 @@ static bool FindFreeRoadStopTile(const Station *st, TileIndex &out_tile, DiagDir
  * Unload road vehicles carried by this carrier at the given station.
  * @return true if at least one road vehicle reached the road network.
  */
-bool RVTransportDetachAtStation(Vehicle *carrier, Station *st)
+bool RVTransportDetachAtStation(Vehicle *carrier, Station *st, bool force)
 {
 	extern void UpdateVehicleTileHash(Vehicle *v, bool remove);
 
@@ -297,9 +321,21 @@ bool RVTransportDetachAtStation(Vehicle *carrier, Station *st)
 		if (v->transported_by != carrier->index) continue;
 		if (!v->IsFrontEngine()) continue;          // the parts are handled together with the front
 
+		/* Only unload a road vehicle which wants to be dropped here: the station of its own "be
+		 * unloaded here" order. A road vehicle which declares no destination at all is dropped at the
+		 * carrier's unload order, as it would otherwise never leave the carrier. */
+		if (!force) {
+			const StationID declared = RVTransportGetDeclaredDestination(v);
+			if (declared != StationID::Invalid() && declared != st->index) continue;
+		}
+
 		TileIndex tile = INVALID_TILE;
 		DiagDirection dd = DiagDirection::NE;
-		if (!FindFreeRoadStopTile(st, tile, dd)) continue; // no room: stay on the carrier, retry later
+		if (!FindFreeRoadStopTile(st, v, tile, dd)) continue; // no room: stay on the carrier, retry later
+
+		/* Remember how the vehicle was carried, in case the stop refuses it below. */
+		const VehicleID host_part = v->transported_host_part;
+		const uint16_t carried_weight = v->transported_weight;
 
 		/* Put the whole road vehicle on that tile, in the same way a vehicle leaves a depot: every
 		 * part starts on the tile and spreads out while the vehicle drives off. */
@@ -326,6 +362,27 @@ bool RVTransportDetachAtStation(Vehicle *carrier, Station *st)
 			u->UpdateIsDrawn();
 		}
 
+		/* Let the road stop itself account for the vehicle: a parking bay is allocated, or the
+		 * occupancy of the drive-through entry it uses is increased. The engine releases it again
+		 * (RoadStop::Leave()) when the road vehicle drives off. */
+		RoadStop *rs = RoadStop::GetByTile(tile, GetRoadStopType(tile));
+		if (rs == nullptr || !rs->Enter(RoadVehicle::From(v))) {
+			/* The stop refused the vehicle after all: put it back on the carrier rather than leaving
+			 * it half placed (its room was checked above, so this should not happen). */
+			for (Vehicle *u = v; u != nullptr; u = u->Next()) {
+				u->rv_transport_flags |= RVTF_TRANSPORTED;
+				u->transported_by = carrier->index;
+				u->transported_host_part = host_part;
+				u->transported_weight = carried_weight;
+				u->vehstatus.Set(VehState::Stopped);
+				u->vehstatus.Set(VehState::Hidden);
+				u->cur_speed = 0;
+				UpdateVehicleTileHash(u, true);
+				u->UpdateIsDrawn();
+			}
+			continue;
+		}
+
 		carrier->MarkDirty();
 		any = true;
 	}
@@ -336,8 +393,7 @@ bool RVTransportDetachAtStation(Vehicle *carrier, Station *st)
  * Station at which a road vehicle wants to be unloaded, taken from the first of its own
  * station orders which asks for unloading road vehicles ("declared destination").
  * @return The station id, or an invalid id when the vehicle declares no destination.
- */
-StationID RVTransportGetDeclaredDestination(const Vehicle *rv)
+ */StationID RVTransportGetDeclaredDestination(const Vehicle *rv)
 {
 	if (rv == nullptr) return StationID::Invalid();
 	for (const Order *o : rv->Orders()) {
@@ -345,6 +401,22 @@ StationID RVTransportGetDeclaredDestination(const Vehicle *rv)
 		if ((o->GetRVTransportFlags() & ORVTF_UNLOAD) != 0) return o->GetDestination().ToStationID();
 	}
 	return StationID::Invalid();
+}
+
+/** How many carried road vehicles of this carrier want to be dropped at this station. */
+uint32_t RVTransportCountWantingUnloadHere(const Vehicle *carrier, const Station *st)
+{
+	if (carrier == nullptr || st == nullptr) return 0;
+	uint32_t count = 0;
+	for (const Vehicle *v : Vehicle::Iterate()) {
+		if ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) continue;
+		if (v->transported_by != carrier->index) continue;
+		if (!v->IsFrontEngine()) continue;
+		const StationID declared = RVTransportGetDeclaredDestination(v);
+		if (declared != StationID::Invalid() && declared != st->index) continue; // wants another station
+		count++;
+	}
+	return count;
 }
 
 /**

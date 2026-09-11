@@ -4719,9 +4719,9 @@ STR_ORDER_DROP_RV_MIN_WAIT                                      :最短等待：
 STR_ORDER_RV_MIN_WAIT_NONE                                      :不限
 STR_ORDER_RV_MIN_WAIT_DAYS                                      :{NUM} 天
 STR_ORDER_DROP_RV_MIN_WAIT_NUM                                  :最短等待：{NUM} 天
-STR_ORDER_RV_CARGO_CAN_CARRY                                    :可载货物：{STRING}
-STR_ORDER_RV_CARGO_IS_CARRYING                                  :正载货物：{STRING}
-STR_ORDER_RV_SLOT                                               :路签：{STRING}
+STR_ORDER_RV_CARGO_CAN_CARRY                                    :可载货物：
+STR_ORDER_RV_CARGO_IS_CARRYING                                  :正载货物：
+STR_ORDER_RV_SLOT                                               :路签：{TRSLOT}
 STR_ORDER_DROP_RV_TRANSPORT                                     :道路载具运输…
 STR_RV_TRANSPORT_CRITERIA_CAPTION                               :道路载具运输
 STR_RV_TRANSPORT_CRITERIA_LOAD_STATE                            :载货状态
