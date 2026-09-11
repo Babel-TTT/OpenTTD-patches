@@ -102,7 +102,8 @@ struct OrderExtraInfo {
 	uint8_t rv_transport_cargo_mode = 0;      ///< Road vehicle transport (RoRo): candidate cargo criterion (RVTransportCargoMode).
 	uint8_t rv_transport_cargo = 0;           ///< Road vehicle transport (RoRo): cargo of the cargo criterion.
 	uint16_t rv_transport_min_wait = 0;       ///< Road vehicle transport (RoRo): minimum days the candidate must have been waiting (0 = no minimum).
-	uint16_t rv_transport_dest_station = 0;   ///< Road vehicle transport (RoRo): specific declared destination the candidate must have (0 = unused).
+	uint16_t rv_transport_slot = 0;           ///< Road vehicle transport (RoRo): trace restrict slot the candidate must hold, slot id + 1 (0 = any).
+	uint16_t rv_transport_dest_station = 0;   ///< Reserved: a dropped criterion ("the first station the candidate declares for unloading"), kept so that savegames written with feature version 2 still load.
 };
 
 namespace upstream_sl {
@@ -262,17 +263,17 @@ public:
 		return this->extra->rv_transport_min_wait;
 	}
 
-	/** Road vehicle transport (RoRo): specific declared destination of a candidate, station id + 1 (0 = unused). */
-	inline uint16_t GetRVTransportDestStation() const
+	/** Road vehicle transport (RoRo): trace restrict slot the candidate must hold ("路签"), slot id + 1 (0 = any). */
+	inline uint16_t GetRVTransportSlot() const
 	{
-		return this->extra != nullptr ? this->extra->rv_transport_dest_station : 0;
+		return this->extra != nullptr ? this->extra->rv_transport_slot : 0;
 	}
 
-	/** Road vehicle transport (RoRo): writable reference to the specific declared destination. */
-	inline uint16_t &GetRVTransportDestStationRef()
+	/** Road vehicle transport (RoRo): writable reference to the trace restrict slot criterion. */
+	inline uint16_t &GetRVTransportSlotRef()
 	{
 		this->CheckExtraInfoAlloced();
-		return this->extra->rv_transport_dest_station;
+		return this->extra->rv_transport_slot;
 	}
 
 	inline uint32_t GetXData2() const

@@ -352,7 +352,12 @@ rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（�
   - 订单一旦变化（插入/删除订单、订单列表重分配）窗口自行关闭；车辆销毁时由 `Vehicle::PreDestructor` 关闭；改动走与订单窗口相同的 `CmdModifyOrder` 路径并立即刷新订单行。
   - 技术注记：`NWidgetCore::SetString()` 只接受 StringID（**不能带参数**），所以按钮文字用"每个取值一条完整字符串"的小表；车站判据的按钮只显示"指定车站"，具体站名在**下拉列表**与**订单行**里显示。
   - 又一次踩到并修好的坑：新窗口类的 `WindowClass` 需要同时登记到 `window_type.h`、`viewport.cpp` 的"窗口类 → 所属车辆"映射与 `Vehicle::PreDestructor` 的关窗列表，否则点视口/销毁车辆时会留孤儿窗口。
-- ⏳ **待办**：货物/目的地的 GUI 选择器（见 M10b）；铰接车实机走查（需含铰接车的 NewGRF，见 M9）；车辆详情窗口里的"载运清单"；船/机载体实机走查（手测步骤见 `manual-test-guide.zh.md` 第 6 节）；载体事故销毁路径实机走查；**等待中的卡车仍占着停靠点 bay**（是否让等待时也释放 bay 待定）；联机 sync test；性能验收；合并前剥离 `rvtransport` 调试命令。
+- ✅ **M10d：加入"路签"判据、移除"声明目的地"**（评审反馈）：
+  - **加入路签判据**（对齐 px-patch"连接车辆"的 `MOF_COUPLE_SLOT` / `CoupleSlotOk()`：判据是"候选必须是该路签的占用者"）：`OrderExtraInfo` 新增 `rv_transport_slot`（路签 ID + 1，0 = 任意），XSLF 特性版本 **2→3**（旧档自动取默认=任意）；新 MOF `MOF_RV_SLOT`（校验：路签必须存在且为**道路载具类型**）；求值用 `TraceRestrictSlot::GetIfValid(...)->IsOccupant(rv->index)`；窗口新增"路签"下拉（列出本公司/公开的**道路载具**类型路签，文本用 `STR_TRACE_RESTRICT_SLOT_NAME`）；订单行显示"路签：<名字>"。
+  - **移除"声明目的地"判据**：`RVTransportGetDeclaredDestination()` 读的是卡车调度里**第一条**带"在此被卸下"的车站调度，多个卸货计划时只有第一个生效（评审判定指代不清）——GUI 行、MOF、控制台键、订单行显示全部移除；**存档字段 `rv_transport_dest_station` 保留为保留位**（feature v2 存档仍能加载）。"只装载去下一站的道路载具"开关（`ORVTF_MATCH_DEST`）保留，覆盖常见用法。
+  - **调试命令**（供自动化验证，合并前剥离）：`rvtransport mkslot <名字> [上限]`（建道路载具路签）、`rvtransport slot <车辆> <路签> on|off`（加入/移出路签）；`rvtransport state` 现在还会列出车辆持有的路签。
+  - **验证**：新增 `testrun/verify_slot.ps1` → **PASS**（非法路签被拒 → 建立路签并保存 → 未持有时 `scan found=false` → 加入后 `found=true` → 移出后 `found=false`）；全量回归 12 个脚本全绿、0 断言。
+- ⏳ **待办**：铰接车实机走查（需含铰接车的 NewGRF，见 M9）；车辆详情窗口里的"载运清单"；船/机载体实机走查（手测步骤见 `manual-test-guide.zh.md` 第 6 节）；载体事故销毁路径实机走查；**等待中的卡车仍占着停靠点 bay**（是否让等待时也释放 bay 待定）；联机 sync test；性能验收；合并前剥离 `rvtransport` 调试命令。
 
 ---
 

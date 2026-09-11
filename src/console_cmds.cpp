@@ -53,6 +53,8 @@
 #include "station_base.h"
 #include "order_cmd.h"
 #include "roadveh_transport.h"
+#include "tracerestrict.h"
+#include "tracerestrict_cmd.h"
 #include "vehicle_base.h"
 #include "waypoint_base.h"
 #include "waypoint_func.h"
@@ -4462,7 +4464,7 @@ static void RVTransportDebugSyncCurrentOrder(Vehicle *v, VehicleOrderID order_in
 	v->current_order.GetRVTransportCargoModeRef() = o->GetRVTransportCargoMode();
 	v->current_order.GetRVTransportCargoRef() = o->GetRVTransportCargo();
 	v->current_order.GetRVTransportMinWaitRef() = o->GetRVTransportMinWait();
-	v->current_order.GetRVTransportDestStationRef() = o->GetRVTransportDestStation();
+	v->current_order.GetRVTransportSlotRef() = o->GetRVTransportSlot();
 }
 
 static bool ConRVTransport(std::span<std::string_view> argv)
@@ -4497,7 +4499,9 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> loadstate any|empty|full");
 		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> cargo any|<cargo_id> [carrying]");
 		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> minwait <days>");
-		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> dest any|<station_id>");
+		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> slot any|<slot_id>");
+		IConsolePrint(CC_HELP, "  rvtransport mkslot <name> [max_occupancy]   # create a road vehicle slot");
+		IConsolePrint(CC_HELP, "  rvtransport slot <vehicle_id> <slot_id> on|off");
 		IConsolePrint(CC_HELP, "  rvtransport release <rv_id>");
 		IConsolePrint(CC_HELP, "  rvtransport detach <carrier_id> <station_id>");
 		IConsolePrint(CC_HELP, "  rvtransport selftest");
@@ -4547,6 +4551,11 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 				parts++;
 			}
 			IConsolePrint(CC_DEFAULT, "  weights: unladen={}t on_board={} parts={}", RVTransportGetVehicleWeightTonnes(v), RVTransportCountOnCarrier(v), parts);
+			std::vector<TraceRestrictSlotID> held_slots;
+			TraceRestrictGetVehicleSlots(v->index, held_slots);
+			for (const TraceRestrictSlotID slot : held_slots) {
+				IConsolePrint(CC_DEFAULT, "  slot: {} (name='{}')", slot.base(), TraceRestrictSlot::Get(slot)->name);
+			}
 		}
 		return true;
 	}
@@ -4763,17 +4772,18 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		} else if (StrEqualsIgnoreCase(key, "minwait")) {
 			mof = MOF_RV_MIN_WAIT;
 			data = ParseType<uint16_t>(value).value_or(0);
-		} else if (StrEqualsIgnoreCase(key, "dest")) {
-			mof = MOF_RV_DEST_STATION;
+		} else if (StrEqualsIgnoreCase(key, "slot")) {
+			mof = MOF_RV_SLOT;
 			if (StrEqualsIgnoreCase(value, "any") || StrEqualsIgnoreCase(value, "none")) {
 				data = 0;
 			} else {
-				const uint16_t st_raw = ParseType<uint16_t>(value).value_or(0xFFFF);
-				if (!Station::IsValidID(StationID(st_raw))) { IConsolePrint(CC_ERROR, "dest must be <station id>, 'any' or 'none'"); return true; }
-				data = static_cast<uint16_t>(st_raw + 1);
+				const uint16_t slot_raw = ParseType<uint16_t>(value).value_or(0xFFFF);
+				const TraceRestrictSlot *slot = TraceRestrictSlot::GetIfValid(TraceRestrictSlotID{slot_raw});
+				if (slot == nullptr) { IConsolePrint(CC_ERROR, "slot must be <slot id>, 'any' or 'none'"); return true; }
+				data = static_cast<uint16_t>(slot_raw + 1);
 			}
 		} else {
-			IConsolePrint(CC_ERROR, "criteria key must be 'loadstate', 'cargo', 'minwait' or 'dest'");
+			IConsolePrint(CC_ERROR, "criteria key must be 'loadstate', 'cargo', 'minwait' or 'slot'");
 			return true;
 		}
 
@@ -4786,10 +4796,71 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		_local_company = old_local_company;
 		const bool ok = res.Succeeded();
 		if (ok) RVTransportDebugSyncCurrentOrder(v, order_index);
-		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "criteria: {} (vehicle #{} order {} {}={}), load_state={} cargo_mode={} cargo={} min_wait={} dest={}",
+		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "criteria: {} (vehicle #{} order {} {}={}), load_state={} cargo_mode={} cargo={} min_wait={} slot={}",
 				ok ? "OK" : "FAILED", v->index.base(), order_index, key, value,
 				o->GetRVTransportLoadState(), o->GetRVTransportCargoMode(), o->GetRVTransportCargo(),
-				o->GetRVTransportMinWait(), o->GetRVTransportDestStation());
+				o->GetRVTransportMinWait(), o->GetRVTransportSlot());
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "mkslot")) {
+		/* Create a road vehicle trace restrict slot, so that the "slot" selection criterion can be
+		 * exercised without the GUI. The owner is the first company with a vehicle (a dedicated
+		 * server has no local company). */
+		if (argv.size() < 3) return false;
+		CompanyID owner = _local_company;
+		if (!Company::IsValidID(owner)) {
+			for (const Vehicle *v : Vehicle::Iterate()) {
+				if (v->type < VehicleType::CompanyEnd && Company::IsValidID(v->owner)) { owner = v->owner; break; }
+			}
+		}
+		if (!Company::IsValidID(owner)) { IConsolePrint(CC_ERROR, "no company to own the slot"); return true; }
+
+		TraceRestrictCreateSlotCmdData data;
+		data.vehtype = VehicleType::Road;
+		data.parent = INVALID_TRACE_RESTRICT_SLOT_GROUP;
+		data.name = std::string{argv[2]};
+		data.max_occupancy = (argv.size() > 3) ? ParseType<uint32_t>(argv[3]).value_or(TRACE_RESTRICT_SLOT_DEFAULT_MAX_OCCUPANCY) : TRACE_RESTRICT_SLOT_DEFAULT_MAX_OCCUPANCY;
+
+		const CompanyID old_local_company = _local_company;
+		const CompanyID old_current_company = _current_company;
+		_local_company = owner;
+		_current_company = owner;
+		const CommandCost res = CmdCreateTraceRestrictSlot(DoCommandFlags{DoCommandFlag::Execute}, data);
+		_current_company = old_current_company;
+		_local_company = old_local_company;
+		const bool ok = res.Succeeded();
+		TraceRestrictSlotID created = TraceRestrictSlotID::Invalid();
+		if (ok) {
+			for (const TraceRestrictSlot *slot : TraceRestrictSlot::Iterate()) {
+				if (slot->owner == owner && slot->name == data.name) { created = slot->index; break; }
+			}
+		}
+		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "mkslot: {} (name='{}' id={} vehtype=road)", ok ? "OK" : "FAILED", data.name, created.base());
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "slot")) {
+		/* Add or remove a vehicle from a trace restrict slot (test helper for the slot criterion). */
+		if (argv.size() != 5) return false;
+		Vehicle *v = get_veh(argv[2]);
+		const uint16_t slot_raw = ParseType<uint16_t>(argv[3]).value_or(0xFFFF);
+		const TraceRestrictSlot *slot = TraceRestrictSlot::GetIfValid(TraceRestrictSlotID{slot_raw});
+		if (v == nullptr || slot == nullptr) { IConsolePrint(CC_ERROR, "vehicle or slot not found"); return true; }
+		const bool on = StrEqualsIgnoreCase(argv[4], "on");
+
+		const CompanyID old_local_company = _local_company;
+		const CompanyID old_current_company = _current_company;
+		_local_company = slot->owner;
+		_current_company = slot->owner;
+		const CommandCost res = on
+				? CmdAddVehicleTraceRestrictSlot(DoCommandFlags{DoCommandFlag::Execute}, slot->index, v->index)
+				: CmdRemoveVehicleTraceRestrictSlot(DoCommandFlags{DoCommandFlag::Execute}, slot->index, v->index);
+		_current_company = old_current_company;
+		_local_company = old_local_company;
+		const bool ok = res.Succeeded();
+		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "slot: {} (vehicle #{} slot {} occupant={})",
+				ok ? "OK" : "FAILED", v->index.base(), slot_raw, TraceRestrictSlot::GetIfValid(TraceRestrictSlotID{slot_raw})->IsOccupant(v->index));
 		return true;
 	}
 

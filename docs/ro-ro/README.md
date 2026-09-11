@@ -55,14 +55,18 @@ parameterised style of the px-patch train coupling feature (whose `CoupleOrderLo
 | load state | any / empty / full | only take an empty (or a fully loaded) road vehicle |
 | cargo | any / can carry X / is carrying X | only take a vehicle which can carry, or currently carries, cargo X |
 | minimum waiting time | 0 = no limit / N days | only take a vehicle which has been waiting for at least N days |
-| declared destination | any / next stop / a specific station | "next stop" is what the *Only road vehicles for the next stop* entry has always done |
+| trace restrict slot | any / a road vehicle slot | only take a vehicle which is an occupant of that slot (the "路签" parameter of the px-patch coupling feature) |
 
-The criteria are stored per station order (5 extra fields in `OrderExtraInfo`, behind extended
-savegame feature version 2, so older saves simply have no criteria). They are edited from the load
-dropdown of the order window: two of them (*Road vehicles: any/empty only/full only* and
-*Wait at least: …*) are cycling entries which show their current value, and a *Selection criteria...*
-entry opens a window with one dropdown per criterion (cargo, cargo aspect, exact waiting time and a
-specific station). All active criteria are listed in the order row, whichever way they were set.
+A specific declared destination was tried and dropped again: the destination a road vehicle
+"declares" is the *first* station of its schedule that carries *be unloaded here*, so with several
+unloading orders only the first one would ever be read. The *Only road vehicles for the next stop*
+toggle (which compares it with the carrier's next stop) is kept.
+
+The criteria are stored per station order (extra fields in `OrderExtraInfo`, behind extended
+savegame feature version 3, so older saves simply have no criteria). They are edited from the load
+dropdown of the order window, which has a single *Road vehicle transport...* entry opening a window
+with the four toggles (load, only for the next stop, wait for road vehicles, unload) and one
+dropdown per criterion. All active criteria are listed in the order row.
 
 The order row lists **every** part of the setting that is active (e.g. "Go to A, load road vehicles,
 only road vehicles for the next stop"), and a waiting/carried road vehicle shows the status
@@ -146,7 +150,9 @@ rvtransport setflags <vehicle> <order> <flags>      # force an order into a know
 rvtransport criteria <vehicle> <order> loadstate any|empty|full
 rvtransport criteria <vehicle> <order> cargo any|<cargo_id> [carrying]
 rvtransport criteria <vehicle> <order> minwait <days>
-rvtransport criteria <vehicle> <order> dest any|<station_id>
+rvtransport criteria <vehicle> <order> slot any|<slot_id>
+rvtransport mkslot <name> [max_occupancy]   # create a road vehicle slot (debug)
+rvtransport slot <vehicle> <slot_id> on|off # add/remove a vehicle from a slot (debug)
 rvtransport attach|detach <carrier> <rv|station> [force]  # run the load/unload transactions directly
 rvtransport release <rv>                            # emergency release (same function as carrier destruction)
 rvtransport sim <carrier> <rv>                      # simulate waiting -> scan -> load on a real map
@@ -171,7 +177,8 @@ config in `build/roro-test.cfg` and a savegame in `build/save/`; adapt the paths
 | `verify_sim.ps1` | waiting → station scan → load chain on a real map | PASS |
 | `verify_user_save.ps1` | order command chain (`load`/`unload`/`dest`) | PASS |
 | `verify_toggle.ps1` | the order window's flag toggling rules (via `rvtransport toggle`, which calls the same `RVTransportToggleOrderFlag()`) | PASS |
-| `verify_filter.ps1` | the selection criteria (7 cases: no criteria, cargo match/mismatch, empty, minimum waiting time too long/off, declared destination) | PASS |
+| `verify_filter.ps1` | the selection criteria (no criteria, cargo match/mismatch, empty, minimum waiting time too long/off) | PASS |
+| `verify_slot.ps1` | the trace restrict slot criterion (invalid slot rejected, non-occupant skipped, occupant taken, removed again) | PASS |
 | `verify_destroy.ps1` | destroying a carrier also destroys the road vehicles it carried | PASS |
 | `verify_release.ps1` | the manual release path (`RVTransportForceRelease`, now a debug/safety net) | PASS |
 | `run_selftest.ps1`, `m1_roundtrip.ps1`, `probe_ai.ps1` | early scaffolding / diagnostics, superseded | disabled |

@@ -449,8 +449,8 @@ enum RVTransportWidgets : WidgetID {
 	WID_RVT_CARGO_MODE,       ///< Candidate cargo mode criterion (can carry / is carrying).
 	WID_RVT_MIN_WAIT_LABEL,   ///< Label of the minimum waiting time criterion.
 	WID_RVT_MIN_WAIT,         ///< Minimum waiting time criterion.
-	WID_RVT_DEST_LABEL,       ///< Label of the declared destination criterion.
-	WID_RVT_DEST,             ///< Declared destination criterion.
+	WID_RVT_SLOT_LABEL,       ///< Label of the trace restrict slot criterion.
+	WID_RVT_SLOT,             ///< Trace restrict slot criterion.
 	WID_RVT_CLOSE,            ///< Close button.
 };
 
@@ -458,8 +458,6 @@ enum RVTransportWidgets : WidgetID {
 static const int RVTC_CARGO_ANY = 0xFF;         ///< "Any cargo" entry of the cargo dropdown.
 static const int RVTC_CARGO_MODE_CAN_CARRY = 0; ///< Cargo criterion: the candidate must be able to carry the cargo.
 static const int RVTC_CARGO_MODE_CARRYING = 1;  ///< Cargo criterion: the candidate must currently carry the cargo.
-static const int RVTC_DEST_ANY = 0;             ///< "Any destination" entry of the destination dropdown.
-static const int RVTC_DEST_NEXT_STOP = 0xFFFF;  ///< "The next stop" entry of the destination dropdown.
 
 /** Waiting times which the "minimum waiting time" criterion offers (in days). */
 static const uint16_t _rv_transport_min_wait_presets[] = { 0, 1, 2, 5, 10, 30, 60 };
@@ -529,7 +527,7 @@ private:
 		this->SetWidgetDisabledState(WID_RVT_CARGO, !criteria_useful);
 		this->SetWidgetDisabledState(WID_RVT_CARGO_MODE, !criteria_useful);
 		this->SetWidgetDisabledState(WID_RVT_MIN_WAIT, !criteria_useful);
-		this->SetWidgetDisabledState(WID_RVT_DEST, !criteria_useful);
+		this->SetWidgetDisabledState(WID_RVT_SLOT, !criteria_useful);
 
 		this->GetWidget<NWidgetCore>(WID_RVT_LOAD_STATE)->SetString(RVTransportLoadStateCriterionText(this->order->GetRVTransportLoadState()));
 
@@ -545,15 +543,14 @@ private:
 
 		this->GetWidget<NWidgetCore>(WID_RVT_MIN_WAIT)->SetString(RVTransportMinWaitCriterionText(this->order->GetRVTransportMinWait()));
 
-		const uint16_t dest = this->order->GetRVTransportDestStation();
-		if (dest == 0) {
-			this->GetWidget<NWidgetCore>(WID_RVT_DEST)->SetString(STR_ORDER_RV_LOAD_STATE_ANY);
-		} else if (dest == RVTC_DEST_NEXT_STOP + 1) {
-			this->GetWidget<NWidgetCore>(WID_RVT_DEST)->SetString(STR_RV_TRANSPORT_CRITERIA_NEXT_STOP);
+		/* Trace restrict slot ("路签"): the road vehicle must be an occupant of that slot. */
+		const uint16_t slot_raw = this->order->GetRVTransportSlot();
+		if (slot_raw == 0) {
+			this->GetWidget<NWidgetCore>(WID_RVT_SLOT)->SetString(STR_ORDER_RV_LOAD_STATE_ANY);
 		} else {
-			/* The station itself is listed in the dropdown and in the order row; a widget string cannot
-			 * carry a station parameter, so the button only says that a station was picked. */
-			this->GetWidget<NWidgetCore>(WID_RVT_DEST)->SetString(STR_RV_TRANSPORT_CRITERIA_DEST_SPECIFIC);
+			const TraceRestrictSlot *slot = TraceRestrictSlot::GetIfValid(TraceRestrictSlotID{static_cast<uint16_t>(slot_raw - 1)});
+			/* A widget string cannot carry a parameter, so a deleted slot is shown as "any" as well. */
+			this->GetWidget<NWidgetCore>(WID_RVT_SLOT)->SetString((slot != nullptr) ? STR_RV_TRANSPORT_CRITERIA_SLOT_SET : STR_ORDER_RV_LOAD_STATE_ANY);
 		}
 	}
 
@@ -633,17 +630,19 @@ private:
 		return list;
 	}
 
-	/** Build the dropdown which selects the declared destination criterion. */
-	DropDownList BuildDestinationList() const
+	/** Build the dropdown which selects the trace restrict slot criterion ("路签"). */
+	DropDownList BuildSlotList() const
 	{
-		const uint16_t current = this->order->GetRVTransportDestStation();
+		const uint16_t current = this->order->GetRVTransportSlot();
 		DropDownList list;
-		list.push_back(MakeDropDownListCheckedItem(current == RVTC_DEST_ANY, STR_ORDER_RV_LOAD_STATE_ANY, RVTC_DEST_ANY));
-		list.push_back(MakeDropDownListCheckedItem(current == RVTC_DEST_NEXT_STOP + 1, STR_RV_TRANSPORT_CRITERIA_NEXT_STOP, RVTC_DEST_NEXT_STOP));
+		list.push_back(MakeDropDownListCheckedItem(current == 0, STR_ORDER_RV_LOAD_STATE_ANY, 0));
 		list.push_back(MakeDropDownListDividerItem());
-		for (const Station *st : Station::Iterate()) {
-			if (st->owner != this->vehicle->owner && st->owner != OWNER_NONE) continue;
-			list.push_back(MakeDropDownListCheckedItem(current == st->index.base() + 1, GetString(STR_STATION_NAME, st->index), st->index.base() + 1));
+		for (const TraceRestrictSlot *slot : TraceRestrictSlot::Iterate()) {
+			/* Only a road vehicle slot can be held by a road vehicle candidate. */
+			if (slot->vehicle_type != VehicleType::Road) continue;
+			if (!slot->IsUsableByOwner(this->vehicle->owner)) continue;
+			list.push_back(MakeDropDownListCheckedItem(current == slot->index.base() + 1,
+					GetString(STR_TRACE_RESTRICT_SLOT_NAME, slot->index), slot->index.base() + 1));
 		}
 		return list;
 	}
@@ -694,8 +693,8 @@ public:
 			case WID_RVT_MIN_WAIT:
 				ShowDropDownList(this, this->BuildMinWaitList(), -1, WID_RVT_MIN_WAIT, 0);
 				return;
-			case WID_RVT_DEST:
-				ShowDropDownList(this, this->BuildDestinationList(), -1, WID_RVT_DEST, 0);
+			case WID_RVT_SLOT:
+				ShowDropDownList(this, this->BuildSlotList(), -1, WID_RVT_SLOT, 0);
 				return;
 
 			case WID_RVT_CLOSE:
@@ -746,8 +745,8 @@ public:
 				this->ModifyOrder(MOF_RV_MIN_WAIT, static_cast<uint16_t>(index));
 				break;
 
-			case WID_RVT_DEST:
-				this->ModifyOrder(MOF_RV_DEST_STATION, (index == RVTC_DEST_ANY) ? 0 : ((index == RVTC_DEST_NEXT_STOP) ? RVTC_DEST_NEXT_STOP + 1 : static_cast<uint16_t>(index)));
+			case WID_RVT_SLOT:
+				this->ModifyOrder(MOF_RV_SLOT, static_cast<uint16_t>(index));
 				break;
 
 			default:
@@ -803,8 +802,8 @@ static constexpr NWidgetPart _nested_rv_transport_widgets[] = {
 			NWidget(WWT_DROPDOWN, Colours::Grey, WID_RVT_MIN_WAIT), SetFill(0, 0), SetResize(0, 0),
 		EndContainer(),
 		NWidget(NWID_HORIZONTAL),
-			NWidget(WWT_TEXT, Colours::Invalid, WID_RVT_DEST_LABEL), SetFill(1, 0), SetResize(1, 0), SetStringTip(STR_RV_TRANSPORT_CRITERIA_DEST, STR_NULL),
-			NWidget(WWT_DROPDOWN, Colours::Grey, WID_RVT_DEST), SetFill(0, 0), SetResize(0, 0),
+			NWidget(WWT_TEXT, Colours::Invalid, WID_RVT_SLOT_LABEL), SetFill(1, 0), SetResize(1, 0), SetStringTip(STR_RV_TRANSPORT_CRITERIA_SLOT, STR_NULL),
+			NWidget(WWT_DROPDOWN, Colours::Grey, WID_RVT_SLOT), SetFill(0, 0), SetResize(0, 0),
 		EndContainer(),
 	EndContainer(),
 	NWidget(NWID_HORIZONTAL),
@@ -1368,9 +1367,12 @@ void DrawOrderString(const Vehicle *v, const Order *order, int order_index, int 
 						AppendStringInPlace(line, order->GetRVTransportCargoMode() == RVTC_CAN_CARRY ? STR_ORDER_RV_CARGO_CAN_CARRY : STR_ORDER_RV_CARGO_IS_CARRYING,
 								CargoSpec::Get(static_cast<CargoType>(order->GetRVTransportCargo()))->name);
 					}
-					if (order->GetRVTransportDestStation() != 0 && Station::IsValidID(StationID(order->GetRVTransportDestStation() - 1))) {
-						line.push_back(' ');
-						AppendStringInPlace(line, STR_ORDER_RV_DEST_STATION, StationID(order->GetRVTransportDestStation() - 1));
+					if (order->GetRVTransportSlot() != 0) {
+						const TraceRestrictSlot *slot = TraceRestrictSlot::GetIfValid(TraceRestrictSlotID{static_cast<uint16_t>(order->GetRVTransportSlot() - 1)});
+						if (slot != nullptr) {
+							line.push_back(' ');
+							AppendStringInPlace(line, STR_ORDER_RV_SLOT, GetString(STR_TRACE_RESTRICT_SLOT_NAME, slot->index));
+						}
 					}
 				}
 			}

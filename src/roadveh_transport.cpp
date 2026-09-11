@@ -20,6 +20,7 @@
 #include "order_base.h"
 #include "road_map.h"
 #include "roadstop_base.h"
+#include "tracerestrict.h"
 #include "roadveh.h"
 #include "settings_type.h"
 #include "station_base.h"
@@ -385,7 +386,7 @@ bool RVTransportOrderHasCriteria(const Order &order)
 	if (order.GetRVTransportLoadState() != RVTLS_ANY) return true;
 	if (order.GetRVTransportCargoMode() != RVTC_ANY) return true;
 	if (order.GetRVTransportMinWait() != 0) return true;
-	if (order.GetRVTransportDestStation() != 0) return true;
+	if (order.GetRVTransportSlot() != 0) return true;
 	return false;
 }
 
@@ -399,12 +400,16 @@ bool RVTransportOrderAllowsCandidate(const Vehicle *carrier, const Vehicle *rv)
 	if (carrier == nullptr || rv == nullptr) return false;
 	const Order &order = carrier->current_order;
 
-	/* Declared destination: a specific station, otherwise the carrier's next stop. */
-	const uint16_t wanted_station = order.GetRVTransportDestStation();
-	if (wanted_station != 0) {
-		if (RVTransportGetDeclaredDestination(rv) != StationID(wanted_station - 1)) return false;
-	} else if ((order.GetRVTransportFlags() & ORVTF_MATCH_DEST) != 0) {
+	/* Declared destination: the carrier's next stop (the road vehicle's own "be unloaded here" order). */
+	if ((order.GetRVTransportFlags() & ORVTF_MATCH_DEST) != 0) {
 		if (RVTransportGetDeclaredDestination(rv) != RVTransportGetNextCarrierStop(carrier)) return false;
+	}
+
+	/* Trace restrict slot ("路签"): the candidate must be an occupant of that slot, which is how a
+	 * specific road vehicle can be picked (the same mechanism the px-patch coupling feature uses). */
+	if (const uint16_t slot_raw = order.GetRVTransportSlot(); slot_raw != 0) {
+		const TraceRestrictSlot *slot = TraceRestrictSlot::GetIfValid(TraceRestrictSlotID{static_cast<uint16_t>(slot_raw - 1)});
+		if (slot == nullptr || !slot->IsOccupant(rv->index)) return false;
 	}
 
 	/* Load state of the candidate. */

@@ -452,7 +452,7 @@ void Order::AssignOrder(const Order &other)
 			|| other.extra->xdata != 0 || other.extra->xdata2 != 0 || other.extra->xflags != 0 || other.extra->dispatch_index != 0 || other.extra->colour != 0
 			|| other.extra->rv_transport_flags != 0 || other.extra->rv_transport_max != 0
 			|| other.extra->rv_transport_load_state != 0 || other.extra->rv_transport_cargo_mode != 0
-			|| other.extra->rv_transport_min_wait != 0 || other.extra->rv_transport_dest_station != 0)) {
+			|| other.extra->rv_transport_min_wait != 0 || other.extra->rv_transport_slot != 0)) {
 		this->AllocExtraInfo();
 		*(this->extra) = *(other.extra);
 	} else {
@@ -1972,7 +1972,7 @@ CommandCost CmdModifyOrder(DoCommandFlags flags, VehicleID veh, VehicleOrderID s
 		switch (order->GetType()) {
 			case OT_GOTO_STATION:
 				if (mof != MOF_NON_STOP && mof != MOF_STOP_LOCATION && mof != MOF_UNLOAD && mof != MOF_LOAD && mof != MOF_CARGO_TYPE_UNLOAD && mof != MOF_CARGO_TYPE_LOAD && mof != MOF_RV_TRAVEL_DIR
-						&& mof != MOF_RV_TRANSPORT && mof != MOF_RV_LOAD_STATE && mof != MOF_RV_CARGO_MODE && mof != MOF_RV_MIN_WAIT && mof != MOF_RV_DEST_STATION) return CMD_ERROR;
+						&& mof != MOF_RV_TRANSPORT && mof != MOF_RV_LOAD_STATE && mof != MOF_RV_CARGO_MODE && mof != MOF_RV_MIN_WAIT && mof != MOF_RV_SLOT) return CMD_ERROR;
 				break;
 
 			case OT_GOTO_DEPOT:
@@ -2089,11 +2089,16 @@ CommandCost CmdModifyOrder(DoCommandFlags flags, VehicleID veh, VehicleOrderID s
 			if (!order->IsType(OT_GOTO_STATION)) return CommandCost(STR_ERROR_RV_TRANSPORT_STATION_ORDER_ONLY);
 			break;
 
-		case MOF_RV_DEST_STATION:
-			/* RoRo selection criterion: declared destination of a candidate road vehicle (station id + 1, 0 = unused). */
+		case MOF_RV_SLOT: {
+			/* RoRo selection criterion: trace restrict slot the candidate must hold (slot id + 1, 0 = any). */
 			if (!order->IsType(OT_GOTO_STATION)) return CommandCost(STR_ERROR_RV_TRANSPORT_STATION_ORDER_ONLY);
-			if (data != 0 && !Station::IsValidID(StationID(data - 1))) return CMD_ERROR;
+			if (data != 0) {
+				/* Only a road vehicle slot can be held by a road vehicle candidate. */
+				const TraceRestrictSlot *slot = TraceRestrictSlot::GetIfValid(TraceRestrictSlotID{static_cast<uint16_t>(data - 1)});
+				if (slot == nullptr || slot->vehicle_type != VehicleType::Road) return CMD_ERROR;
+			}
 			break;
+		}
 
 		case MOF_DEPOT_ACTION:
 			if (data >= DA_END) return CMD_ERROR;
@@ -2422,8 +2427,8 @@ CommandCost CmdModifyOrder(DoCommandFlags flags, VehicleID veh, VehicleOrderID s
 				order->GetRVTransportMinWaitRef() = static_cast<uint16_t>(data);
 				break;
 
-			case MOF_RV_DEST_STATION:
-				order->GetRVTransportDestStationRef() = static_cast<uint16_t>(data);
+			case MOF_RV_SLOT:
+				order->GetRVTransportSlotRef() = static_cast<uint16_t>(data);
 				break;
 
 			case MOF_CARGO_TYPE_LOAD:

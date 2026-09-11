@@ -4721,18 +4721,17 @@ STR_ORDER_RV_MIN_WAIT_DAYS                                      :{NUM} 天
 STR_ORDER_DROP_RV_MIN_WAIT_NUM                                  :最短等待：{NUM} 天
 STR_ORDER_RV_CARGO_CAN_CARRY                                    :可载货物：{STRING}
 STR_ORDER_RV_CARGO_IS_CARRYING                                  :正载货物：{STRING}
-STR_ORDER_RV_DEST_STATION                                       :目的地：{STATION}
-STR_ORDER_DROP_RV_CRITERIA                                      :筛选条件…
+STR_ORDER_RV_SLOT                                               :路签：{STRING}
 STR_ORDER_DROP_RV_TRANSPORT                                     :道路载具运输…
-STR_RV_TRANSPORT_CRITERIA_CAPTION                               :道路载具筛选条件
+STR_RV_TRANSPORT_CRITERIA_CAPTION                               :道路载具运输
 STR_RV_TRANSPORT_CRITERIA_LOAD_STATE                            :载货状态
 STR_RV_TRANSPORT_CRITERIA_CARGO                                 :货物
 STR_RV_TRANSPORT_CRITERIA_CARGO_MODE                            :货物判据
 STR_RV_TRANSPORT_CRITERIA_CAN_CARRY                             :能载
 STR_RV_TRANSPORT_CRITERIA_IS_CARRYING                           :正载
 STR_RV_TRANSPORT_CRITERIA_MIN_WAIT                              :最短等待
-STR_RV_TRANSPORT_CRITERIA_DEST                                  :声明目的地
-STR_RV_TRANSPORT_CRITERIA_NEXT_STOP                             :下一站
+STR_RV_TRANSPORT_CRITERIA_SLOT                                  :路签
+STR_RV_TRANSPORT_CRITERIA_SLOT_SET                              :已指定路签
 STR_RV_TRANSPORT_CRITERIA_LOAD_STATE_ANY                        :载具条件：任意
 STR_RV_TRANSPORT_CRITERIA_LOAD_STATE_EMPTY                      :载具条件：仅空车
 STR_RV_TRANSPORT_CRITERIA_LOAD_STATE_FULL                       :载具条件：仅满载
@@ -4745,7 +4744,6 @@ STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_10                           :最短等待：
 STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_30                           :最短等待：30 天
 STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_60                           :最短等待：60 天
 STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_CUSTOM                       :最短等待：自定义时间
-STR_RV_TRANSPORT_CRITERIA_DEST_SPECIFIC                         :指定车站
 STR_ORDER_TOOLTIP_FULL_LOAD                                     :{BLACK}修改当前命令在车站的装载措施
 
 STR_ORDER_TOGGLE_UNLOAD                                         :{BLACK}全部卸载
