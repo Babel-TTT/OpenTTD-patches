@@ -7,10 +7,14 @@ refit, orders and identity), and be unloaded at another station, where it simply
 own schedule.
 
 * **Base**: JGRPP **0.73.1**, commit `611aabd7ba` (this is *not* upstream OpenTTD trunk)
-* **Status**: playable and verified in game (waiting, loading, transport, unloading and release
-  all work); the remaining work is listed under *Known limitations*
-* **Diff vs. base**: `src/` — 34 files, +1336/−36 · `docs/ro-ro/` — 4 files (+1187) ·
-  `testrun/` — 14 scripts (+821). See `git diff --stat 611aabd7ba..HEAD`
+* **Status**: playable and verified in game — waiting, loading, transport, unloading, release,
+  articulated road vehicles, and train/ship/aircraft carriers have all been walked through; the
+  remaining work is listed under *Known limitations*
+* **Diff vs. base**: `src/` — 35 files, +2398/−36 · `docs/ro-ro/` — 4 files (+1303) ·
+  `testrun/` — 16 scripts (+1052). See `git diff --stat 611aabd7ba..HEAD`
+* **Milestones**: the implementation specification plans M1–M8; the work that was added while
+  reviewing (M9 articulated vehicles, M10 selection criteria, M10b–d the settings window and the
+  slot criterion, M11/M11b fixes) is described in its chapter 11 and appendix D
 
 ## How it works from the player's point of view
 
@@ -198,19 +202,18 @@ path is exercised through `rvtransport release` (the same `RVTransportForceRelea
 
 Work that is deliberately **not** in this branch yet:
 
-* **Articulated (multi-part) road vehicles are handled by the transport code**, but the end-to-end
-  verification still needs a savegame whose NewGRF vehicle set provides articulated road vehicles
-  (the default game content has none). Note that the engine itself does not let articulated road
-  vehicles enter bay-type road stops, so they can only wait at drive-through stops.
 * **No "carried vehicles" list in the vehicle detail window** — a carrier's status line shows how
   many road vehicles it holds, but the individual vehicles can only be inspected through
   `rvtransport list`/`state` for now.
-* **Ship and aircraft carriers are not walked through on a real map yet** (they share the entire
-  code path with trains; the manual steps are in `manual-test-guide.zh.md` §6).
-* **The accident-destruction path was verified through its function, not through a real crash**
-  (`verify_release.ps1` calls the same `RVTransportForceRelease()`).
+* **A road vehicle which is carried when its carrier is destroyed is deleted outright**, so it never
+  shows a wreck of its own (the wreck disappears together with the carrier's). Walking through a real
+  crash confirms that the effect matches the design, just without that intermediate picture.
 * No multiplayer sync test, no performance measurement, and the `rvtransport` debug command is
   still present (to be stripped before merging).
+
+Walked through in game (tester): waiting → loading → transport → unloading, articulated (multi-part)
+road vehicles, ship and aircraft carriers, and carrier destruction. See appendix D.3b of the
+implementation specification for the notes.
 
 Design decisions worth knowing when reviewing:
 

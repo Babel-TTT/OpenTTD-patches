@@ -72,8 +72,19 @@ uint32_t RVTransportGetPartUsedTonnes(const Vehicle *part);
 /** Can this carrier part carry road vehicles at all (cargo class oversized)? */
 bool RVTransportPartCanCarry(const Vehicle *part);
 
-/** Set/clear the "waiting to be transported" state of a road vehicle. */
+/**
+ * Set/clear the "waiting to be transported" state of a road vehicle.
+ * @param waiting Whether the vehicle waits for a carrier.
+ */
 void RVTransportSetWaiting(Vehicle *rv, bool waiting);
+
+/**
+ * Called for every ticked road vehicle: ends the "waiting to be transported" state when the vehicle
+ * was told to do something else in the meantime (the player skipped the order, sent it to a depot,
+ * ...). Without this the vehicle would keep sitting at the station with the waiting flag set, and a
+ * "go to depot" order would never be carried out because the vehicle stays stopped.
+ */
+void RVTransportTickWaiting(Vehicle *rv);
 
 /**
  * Toggle one road vehicle transport flag of a station order, keeping the combination meaningful:

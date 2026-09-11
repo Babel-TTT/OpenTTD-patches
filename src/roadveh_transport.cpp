@@ -118,6 +118,24 @@ void RVTransportSetWaiting(Vehicle *rv, bool waiting)
 }
 
 /**
+ * End the "waiting to be transported" state when the vehicle was told to do something else in the
+ * meantime: the player may skip the order or send the vehicle to a depot, in which case it must not
+ * keep waiting (and, because a waiting vehicle is stopped, it would not even carry the order out).
+ */
+void RVTransportTickWaiting(Vehicle *rv)
+{
+	if (rv == nullptr || rv->type != VehicleType::Road) return;
+	if ((rv->rv_transport_flags & RVTF_WAITING) == 0) return;
+
+	/* The vehicle still waits only while its current order asks for it, which is the same condition
+	 * under which the waiting state was entered (Vehicle::BeginLoading()). */
+	const Order &order = rv->current_order;
+	if (order.IsType(OT_GOTO_STATION) && (order.GetRVTransportFlags() & ORVTF_LOAD) != 0) return;
+
+	RVTransportSetWaiting(rv, false);
+}
+
+/**
  * Toggle one road vehicle transport flag of a station order, keeping the combination meaningful:
  * the destination match and waiting only make sense while road vehicles are loaded, and a road
  * vehicle's own order never uses the destination match.
