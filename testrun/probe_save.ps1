@@ -9,6 +9,7 @@ param(
     [Parameter(Mandatory)][string]$SavePath,
     [string[]]$Commands = @('rvtransport list'),
     [string]$Config = '',
+    [string]$Exe = '',
     [int]$ReadyTimeoutSec = 180,
     [double]$DelaySec = 1.2,
     [string]$LogName = 'log_probe_save.txt'
@@ -17,7 +18,8 @@ param(
 . (Join-Path $PSScriptRoot '_common.ps1')
 
 $root = Get-RoRoRoot
-$exe  = Join-Path $root 'build\openttd.exe'
+if (-not $Exe) { $Exe = Join-Path $root 'build\openttd.exe' }
+$exe = $Exe
 if (-not $Config) { $Config = Get-RoRoTestConfig -Root $root }
 if (-not (Test-Path -LiteralPath $SavePath)) { Write-Output "savegame not found: $SavePath"; exit 1 }
 

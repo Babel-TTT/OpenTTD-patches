@@ -252,6 +252,27 @@ uint8_t RVTransportToggleOrderFlag(uint8_t flags, uint8_t bit, bool is_road_vehi
 }
 
 /**
+ * Recompute the entry occupancy caches of the drive-through road stop at this tile from the vehicles
+ * which are really on its tiles. A savegame load does the same for the whole map, which is why a game
+ * which has drifted out of step can be "fixed" by loading it again; doing it after vehicles have been
+ * put down keeps the caches exact instead.
+ */
+static void RVTransportRebuildRoadStop(TileIndex tile)
+{
+	if (!IsAnyRoadStopTile(tile) || IsBayRoadStopTile(tile)) return;
+
+	const RoadStopType rst = GetRoadStopType(tile);
+	const TileIndexDiff offset = TileOffsByAxis(GetDriveThroughStopAxis(tile));
+	TileIndex base_tile = tile;
+	for (TileIndex t = base_tile - offset; RoadStop::IsDriveThroughRoadStopContinuation(base_tile, t); t -= offset) base_tile = t;
+
+	RoadStop *base = RoadStop::GetByTile(base_tile, rst);
+	if (base == nullptr || !base->status.Test(RoadStop::RoadStopStatusFlag::BaseEntry)) return;
+	base->GetEntry(DiagDirection::NE).Rebuild(base);
+	base->GetEntry(DiagDirection::NW).Rebuild(base);
+}
+
+/**
  * A road vehicle which is loaded onto a carrier leaves the road stop it was waiting in.
  * A parking bay is just a flag, but a drive-through stop caches how much of its entry is occupied;
  * that cache can be out of step with reality (it is rebuilt from the vehicles on the tiles, and a
@@ -264,24 +285,14 @@ static void RVTransportReleaseRoadStop(Vehicle *rv)
 {
 	if (rv == nullptr || !IsAnyRoadStopTile(rv->tile)) return;
 
-	const RoadStopType rst = GetRoadStopType(rv->tile);
-
 	if (IsBayRoadStopTile(rv->tile)) {
 		/* Bay stop: free the bay flag (the bay number is stored in the vehicle state). */
-		RoadStop *rs = RoadStop::GetByTile(rv->tile, rst);
+		RoadStop *rs = RoadStop::GetByTile(rv->tile, GetRoadStopType(rv->tile));
 		if (rs != nullptr) rs->Leave(RoadVehicle::From(rv));
 		return;
 	}
 
-	/* Drive-through stop: find the base stop of this chain and rebuild its entry caches. */
-	const TileIndexDiff offset = TileOffsByAxis(GetDriveThroughStopAxis(rv->tile));
-	TileIndex base_tile = rv->tile;
-	for (TileIndex t = base_tile - offset; RoadStop::IsDriveThroughRoadStopContinuation(base_tile, t); t -= offset) base_tile = t;
-
-	RoadStop *base = RoadStop::GetByTile(base_tile, rst);
-	if (base == nullptr || !base->status.Test(RoadStop::RoadStopStatusFlag::BaseEntry)) return;
-	base->GetEntry(DiagDirection::NE).Rebuild(base);
-	base->GetEntry(DiagDirection::NW).Rebuild(base);
+	RVTransportRebuildRoadStop(rv->tile);
 }
 
 /**
@@ -411,6 +422,7 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 		u->cur_speed = 0;
 		RoadVehicle::From(u)->state = DiagDirToDiagTrackdir(DirToDiagDir(u->direction));
 		UpdateVehicleTileHash(u, true);   // off the road network (like virtual vehicles)
+		InvalidateVehicleTickCaches();
 		u->UpdateIsDrawn();
 		u->Vehicle::UpdateViewport(true); // appears/disappears: mark the area dirty
 	}
@@ -673,7 +685,9 @@ bool RVTransportDetachAtStation(Vehicle *carrier, Station *st, bool force)
 			u->cur_speed = 0;
 			u->vehstatus.Reset(VehState::Hidden);
 			u->vehstatus.Reset(VehState::Stopped);
+			UpdateVehicleTileHash(u, true);    // make sure it is not listed where it came from
 			UpdateVehicleTileHash(u, false);   // back on the road network
+			InvalidateVehicleTickCaches();
 			u->UpdateIsDrawn();
 			u->Vehicle::UpdateViewport(true); // appears/disappears: mark the area dirty
 		}
@@ -693,12 +707,18 @@ bool RVTransportDetachAtStation(Vehicle *carrier, Station *st, bool force)
 				u->vehstatus.Set(VehState::Stopped);
 				u->vehstatus.Set(VehState::Hidden);
 				u->cur_speed = 0;
-				UpdateVehicleTileHash(u, true);
+				UpdateVehicleTileHash(u, true);   // off the road network (like virtual vehicles)
+				InvalidateVehicleTickCaches();
 				u->UpdateIsDrawn();
 				u->Vehicle::UpdateViewport(true); // appears/disappears: mark the area dirty
 			}
 			continue;
 		}
+
+		/* The stop's own bookkeeping adds the vehicle up entry by entry; recompute the entry caches from
+		 * the vehicles which are really on the tiles (exactly what a savegame load does), so that a
+		 * vehicle which was put down can always drive out again. */
+		RVTransportRebuildRoadStop(tile);
 
 		carrier->MarkDirty();
 		RVTransportRefreshCarrier(carrier, Vehicle::GetIfValid(host_part));
@@ -809,7 +829,7 @@ bool RVTransportOrderAllowsCandidate(const Vehicle *carrier, const Vehicle *rv)
 		if (RVTransportGetDeclaredDestination(rv) != RVTransportGetNextCarrierStop(carrier)) return false;
 	}
 
-	/* Trace restrict slot ("璺"): the candidate must be an occupant of that slot, which is how a
+	/* Trace restrict slot ("鐠侯垳顒?): the candidate must be an occupant of that slot, which is how a
 	 * specific road vehicle can be picked (the same mechanism the px-patch coupling feature uses). */
 	if (const uint16_t slot_raw = order.GetRVTransportSlot(); slot_raw != 0) {
 		const TraceRestrictSlot *slot = TraceRestrictSlot::GetIfValid(TraceRestrictSlotID{static_cast<uint16_t>(slot_raw - 1)});
@@ -988,8 +1008,10 @@ void RVTransportForceRelease(Vehicle *rv)
 			u->direction = DiagDirToDir(DiagDirection::NE);
 			rvv->state = DiagDirToDiagTrackdir(DiagDirection::NE);
 			rvv->frame = 0;
+			UpdateVehicleTileHash(u, true);    // make sure it is not listed where it came from
 			UpdateVehicleTileHash(u, false);   // back on the road network
 		}
+		InvalidateVehicleTickCaches();
 		u->UpdateIsDrawn();
 		u->Vehicle::UpdateViewport(true); // appears/disappears: mark the area dirty
 	}

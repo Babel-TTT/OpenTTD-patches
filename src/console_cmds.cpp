@@ -4992,6 +4992,22 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		return true;
 	}
 
+	if (StrEqualsIgnoreCase(argv[1], "arrive")) {
+		/* Debug helper: run the engine's own station arrival for a vehicle (Vehicle::BeginLoading()),
+		 * which is what registers it in the station's list of loading vehicles and gives it a cargo
+		 * payment. Refuses when the vehicle still has a cargo payment (that would assert), so that a
+		 * script can build the "really arrived and waiting" state the game produces on its own. */
+		if (argv.size() != 3) return false;
+		Vehicle *v = get_veh(argv[2]);
+		if (v == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		if (v->cargo_payment != nullptr) { IConsolePrint(CC_ERROR, "arrive: vehicle #{} still has a cargo payment (already at a station?)", v->index.base()); return true; }
+		v->BeginLoading();
+		IConsolePrint(CC_DEFAULT, "arrive: vehicle #{} order type={} in a station loading list={} payment={} load_unload_ticks={} state={}",
+				v->index.base(), (int)v->current_order.GetType(), RVTransportDebugStationLists(v),
+				(v->cargo_payment != nullptr), v->load_unload_ticks, (int)RoadVehicle::From(v)->state);
+		return true;
+	}
+
 	if (StrEqualsIgnoreCase(argv[1], "invariants")) {
 		/* Debug: the state a carried road vehicle must not have left behind at the station it was
 		 * picked up at (see RVTransportLeaveBoardingStation()). */
@@ -5074,14 +5090,21 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 	}
 
 	if (StrEqualsIgnoreCase(argv[1], "detach")) {
-		if (argv.size() < 4) return false;
+		if (argv.size() < 3) return false;
 		Vehicle *carrier = get_veh(argv[2]);
-		Station *st = Station::GetIfValid(ParseType<StationID>(argv[3]).value_or(StationID::Invalid()));
-		if (carrier == nullptr || st == nullptr) { IConsolePrint(CC_ERROR, "vehicle or station not found"); return true; }
-		const bool force = argv.size() > 4 && StrEqualsIgnoreCase(argv[4], "force");
+		if (carrier == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
 		carrier = carrier->First();
+		/* 'current' (or no station at all) means the station of the carrier's current order. */
+		Station *st = nullptr;
+		if (argv.size() < 4 || StrEqualsIgnoreCase(argv[3], "current")) {
+			st = Station::GetIfValid(carrier->current_order.GetDestination().ToStationID());
+		} else {
+			st = Station::GetIfValid(ParseType<StationID>(argv[3]).value_or(StationID::Invalid()));
+		}
+		if (st == nullptr) { IConsolePrint(CC_ERROR, "station not found"); return true; }
+		const bool force = argv.size() > 4 && StrEqualsIgnoreCase(argv[4], "force");
 		const bool ok = RVTransportDetachAtStation(carrier, st, force);
-		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "detach: {} (on board={}, force={})", ok ? "ok" : "failed", RVTransportCountOnCarrier(carrier), force);
+		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "detach: {} (on board={}, force={}, station #{})", ok ? "ok" : "failed", RVTransportCountOnCarrier(carrier), force, st->index.base());
 		return true;
 	}
 
