@@ -43,14 +43,43 @@ uint32_t RVTransportGetVehicleWeightTonnes(const Vehicle *rv)
 	return RoadVehicle::From(rv)->gcache.cached_weight;
 }
 
+/**
+ * Cargo label of the dedicated "Vehicles" cargo which vehicle transporting NewGRFs use for the cargo
+ * of their car ferries / car carriers (see RVTransportCarrierParts::BulkOversizedOrVehicles).
+ */
+static constexpr CargoLabel RV_TRANSPORT_VEHICLES_CARGO_LABEL{'VEHI'};
+
 /** Is this carrier part able to carry road vehicles? */
 bool RVTransportPartCanCarry(const Vehicle *part)
 {
 	if (part == nullptr) return false;
 	if (part->cargo_cap == 0) return false;
 	if (!IsValidCargoType(part->cargo_type)) return false;
-	if (!_settings_game.vehicle.rv_transport_require_oversized) return true; // default: any part with cargo capacity
-	return IsCargoInClass(part->cargo_type, CargoClass::Oversized);
+
+	switch (static_cast<RVTransportCarrierParts>(_settings_game.vehicle.rv_transport_carrier_parts)) {
+		case RVTransportCarrierParts::AnyPart:
+			return true;
+
+		case RVTransportCarrierParts::OversizedOnly:
+			return IsCargoInClass(part->cargo_type, CargoClass::Oversized);
+
+		case RVTransportCarrierParts::BulkOversizedOrVehicles: {
+			/* A part may take a road vehicle when its cargo is one of the cargoes which can really
+			 * hold one:
+			 *  - bulk cargo (open/hopper wagons: coal, ore, grain, ...),
+			 *  - a cargo the NewGRF marked as 'oversized' (stake/flatbed wagons, car ferries),
+			 *  - the dedicated "Vehicles" cargo (label 'VEHI') which vehicle transporting NewGRFs
+			 *    (car ferries, car carriers) use for exactly this purpose.
+			 * Everything else is refused, so a passenger carriage, a mail van, a wood/steel/goods
+			 * van and a tank car never take a vehicle. The default content has no 'oversized' and
+			 * no 'VEHI' cargo, so with it only bulk wagons qualify. */
+			if (IsCargoInClass(part->cargo_type, CargoClass::Bulk)) return true;
+			if (IsCargoInClass(part->cargo_type, CargoClass::Oversized)) return true;
+			return CargoSpec::Get(part->cargo_type)->label == RV_TRANSPORT_VEHICLES_CARGO_LABEL;
+		}
+	}
+
+	return false;
 }
 
 /** Transport capacity of a carrier part in tonnes, derived from its cargo capacity. */

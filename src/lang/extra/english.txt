@@ -578,8 +578,12 @@ STR_CONFIG_SETTING_SHARING_ORDERS_TO_OTHERS                     :Can't change th
 STR_CONFIG_SETTING_TRAIN_SPEED_ADAPTATION                       :Enable train speed adaptation: {STRING2}
 STR_CONFIG_SETTING_TRAIN_SPEED_ADAPTATION_HELPTEXT              :When enabled, faster trains adjust their speed when passing signals to attempt to match slower trains in front.{}This may not be appropriate for some signalling styles or layouts, and can be disabled and re-enabled on a per-train basis using signal routing restrictions.
 
-STR_CONFIG_SETTING_RV_TRANSPORT_REQUIRE_OVERSIZED               :Carrying road vehicles requires 'oversized' cargo class: {STRING2}
-STR_CONFIG_SETTING_RV_TRANSPORT_REQUIRE_OVERSIZED_HELPTEXT      :When enabled, only carrier parts whose current cargo belongs to the 'oversized' cargo class can carry road vehicles.{}Disable this to allow any vehicle part with cargo capacity to carry road vehicles (the default game content has no oversized cargo, so this must be disabled to test the feature without a suitable NewGRF).
+STR_CONFIG_SETTING_RV_TRANSPORT_CARRIER_PARTS                   :Road vehicle transport: carrier parts which may carry vehicles: {STRING2}
+STR_CONFIG_SETTING_RV_TRANSPORT_CARRIER_PARTS_HELPTEXT          :Which parts of a train, ship or aircraft may take road vehicles on board.{}A part always needs room for the vehicle's weight as well.{}'Any part with cargo capacity' allows everything, including passenger carriages and tank cars.{}'Only parts carrying oversized cargo' is for vehicle-carrying wagons and ferry holds, whose NewGRF marks their cargo as oversized; the default game content has no such cargo, so nothing can carry with this choice.{}'Bulk, oversized or vehicles cargo' (the default) allows a part whose cargo is bulk (open and hopper wagons: coal, ore, grain, ...), a cargo marked as oversized, or the dedicated "Vehicles" cargo (label VEHI) which car ferries and car carriers use, so passenger carriages, mail vans, tank cars and covered vans never take a vehicle.{}Unloading is unaffected: changing this setting never strands a vehicle which is already on board.
+STR_CONFIG_SETTING_RV_TRANSPORT_CARRIER_PARTS_ANY               :any part with cargo capacity
+STR_CONFIG_SETTING_RV_TRANSPORT_CARRIER_PARTS_OVERSIZED         :only parts carrying 'oversized' cargo
+STR_CONFIG_SETTING_RV_TRANSPORT_CARRIER_PARTS_BULK_OVERSIZED_VEHI:bulk, 'oversized' or 'vehicles' cargo
+STR_CONFIG_SETTING_ROAD_VEHICLE_TRANSPORT                       :Road vehicle transport
 
 STR_CONFIG_SETTING_SLOW_ROAD_VEHICLES_IN_CURVES                 :Road vehicles slow down in curves: {STRING2}
 STR_CONFIG_SETTING_SLOW_ROAD_VEHICLES_IN_CURVES_HELPTEXT        :When enabled, road vehicles slow down in curves. (Only with realistic acceleration)

@@ -31,6 +31,7 @@
 #include "rail.h"
 #include "rail_gui.h"
 #include "roadveh.h"
+#include "roadveh_transport.h"
 #include "scope_info.h"
 #include "screenshot.h"
 #include "settings_internal.h"

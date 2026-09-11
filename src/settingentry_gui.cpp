@@ -1014,6 +1014,13 @@ SettingsContainer &GetSettingsTree()
 			vehicles->Add(new SettingEntry("vehicle.non_leading_engines_keep_name"));
 		}
 
+		/* Road vehicles carried by other vehicles (RoRo): its own page, so that everything this
+		 * feature adds can be found in one place. */
+		SettingsPage *rv_transport = main->Add(new SettingsPage(STR_CONFIG_SETTING_ROAD_VEHICLE_TRANSPORT));
+		{
+			rv_transport->Add(new SettingEntry("vehicle.rv_transport_carrier_parts"));
+		}
+
 		SettingsPage *limitations = main->Add(new SettingsPage(STR_CONFIG_SETTING_LIMITATIONS));
 		{
 			limitations->Add(new SettingEntry("construction.command_pause_level"));

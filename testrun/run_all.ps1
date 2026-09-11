@@ -29,6 +29,7 @@ $all = @(
     'smoke_m2a.ps1',
     'verify_details.ps1',
     'verify_wait_tick.ps1',
+    'verify_carrier_parts.ps1',
     'verify_attach.ps1',
     'verify_part_carrier.ps1',
     'verify_unload_match.ps1',

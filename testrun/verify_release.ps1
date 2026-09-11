@@ -29,6 +29,8 @@ $e = $p.StandardError.ReadToEndAsync()
 Start-Sleep -Seconds 45
 $cmds = @(
     'pause',
+    # The test savegame's carrier wagon carries Wood, which the default gate (value 2) refuses; open it.
+    'setting vehicle.rv_transport_carrier_parts 0',
     'rvtransport sim firsttrain firstrv',
     'rvtransport state firstrv',
     'rvtransport release firstrv',

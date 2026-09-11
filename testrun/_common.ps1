@@ -59,6 +59,7 @@ function Invoke-RoRoTest
         [string]$Savegame = '',
         [string]$RawArguments = '',
         [Parameter(Mandatory)][string[]]$Commands,
+        [int]$CarrierParts = 0,
         [string]$LogName = '',
         [double]$DelaySec = 1.0,
         [int]$ReadyTimeoutSec = 90,
@@ -107,16 +108,30 @@ function Invoke-RoRoTest
 
     $ready = $false
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $lastProbeSec = -10.0
     while (-not $ready -and $sw.Elapsed.TotalSeconds -lt $ReadyTimeoutSec) {
-        try { $p.StandardInput.WriteLine("save $probeName"); $p.StandardInput.Flush() } catch { break }
-        Start-Sleep -Milliseconds 400
+        # Re-send the probe only every 1.5s: sending it on every poll queues a save for every poll, and
+        # a large savegame takes longer than the poll interval (the queue would then keep saving long
+        # after the game is ready, which for a 20 MB map means dozens of useless writes).
+        if (($sw.Elapsed.TotalSeconds - $lastProbeSec) -ge 1.5) {
+            try { $p.StandardInput.WriteLine("save $probeName"); $p.StandardInput.Flush() } catch { break }
+            $lastProbeSec = $sw.Elapsed.TotalSeconds
+        }
+        Start-Sleep -Milliseconds 200
         foreach ($path in $probePaths) { if (Test-Path -LiteralPath $path) { $ready = $true; break } }
         if ($p.HasExited) { break }
     }
     if (-not $KeepProbe) { foreach ($path in $probePaths) { Remove-Item -LiteralPath $path -ErrorAction SilentlyContinue } }
 
     if ($ready) {
-        foreach ($c in $Commands) {
+        # The 'which carrier parts may carry' setting defaults to value 2 (bulk / 'oversized' / 'VEHI'
+        # cargo only), which refuses the test savegame's wood wagon. The mechanics scripts want the
+        # gate open, so they set it to 0 first; the gate itself is verified by verify_carrier_parts.ps1
+        # (which switches all three values itself, so it passes -CarrierParts -1).
+        $allCommands = @()
+        if ($CarrierParts -ge 0) { $allCommands += "setting vehicle.rv_transport_carrier_parts $CarrierParts" }
+        $allCommands += $Commands
+        foreach ($c in $allCommands) {
             try { $p.StandardInput.WriteLine($c); $p.StandardInput.Flush() } catch {}
             if ($DelaySec -gt 0) { Start-Sleep -Milliseconds ([int]($DelaySec * 1000)) }
         }

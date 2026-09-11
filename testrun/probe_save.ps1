@@ -28,6 +28,12 @@ $cmdList = @()
 foreach ($c in $Commands) { $cmdList += ($c -split ',') | Where-Object { $_ } }
 
 # The savegames of a tester may use many NewGRFs, so allow a long time for the load.
+#
+# Note for very large savegames (tens of MB, hundreds of NewGRFs): the readiness probe is not reliable
+# there. The game loads the savegame in a background thread while the console already answers, so
+# `save <probe>` succeeds against a half loaded world (an empty vehicle list, a company with no
+# vehicles) long before the load is finished. Use a savegame copy in build\save\ when possible, and for
+# a huge original give the load a fixed wait of several minutes instead of the probe.
 $cmds = @('pause') + $cmdList + @('quit')
 $txt = Invoke-RoRoTest -Tag 'probe' -Exe $exe -Config $Config -Savegame $SavePath -Commands $cmds `
     -LogName $LogName -DelaySec $DelaySec -ReadyTimeoutSec $ReadyTimeoutSec

@@ -166,7 +166,7 @@ version 3) and does **not** bump `SAVEGAME_VERSION`:
 | GUI | `src/order_gui.cpp`, `src/vehicle_gui.cpp`, `src/lang/extra/*.txt` | dropdown entries, road-vehicle vs carrier wording, order-row markers, status strings |
 | Destruction | `src/vehicle.cpp` (`PreDestructor` → `RVTransportDestroyCarriedVehicles`) | a destroyed carrier takes the road vehicles it holds with it |
 | Position/lists | `src/roadveh_transport.cpp` (`RVTransportGetFollowVehicle`), `viewport.cpp`, `window.cpp`, `vehicle_gui.cpp`, `vehiclelist.cpp` | carried road vehicles stay listed and are followed/located at their carrier |
-| Setting | `src/table/settings/game_settings.ini`, `src/settings_type.h` | `vehicle.rv_transport_require_oversized` (default `false` = any cargo capacity may carry) |
+| Setting | `src/table/settings/game_settings.ini`, `src/settings_type.h`, `src/settingentry_gui.cpp`, `src/roadveh_transport.h` | `vehicle.rv_transport_carrier_parts` (enum, expert category, own settings page): `0` = any part with cargo capacity may carry, `1` = only a part whose cargo is in the *oversized* class may carry, `2` (**default**) = only a part whose cargo is bulk, *oversized*, or the NewGRF "Vehicles" cargo (label `VEHI`) may carry |
 
 ## Developer/debug console commands
 
@@ -259,8 +259,24 @@ Design decisions worth knowing when reviewing:
   appear in vehicle lists/groups/statistics, or contribute to the road network.
 * While carried, a road vehicle's own cargo is frozen (in-transit time/distance is not advanced);
   the cargo flow graphs therefore do not show the carried leg (it never enters a station cargo slot).
-* By default any carrier part with cargo capacity may carry road vehicles. A setting
-  (*"Carrying road vehicles requires 'oversized' cargo class"*, off by default) restores the
-  stricter rule for NewGRF sets that provide `oversized` cargo; the default game content has none.
+* Which carrier parts may carry a road vehicle is decided by one three-value setting
+  (*Settings → Expert → Road vehicle transport → "Which carrier parts may carry road vehicles"*):
+
+  | Value | Rule | Effect on the default game content |
+  |---|---|---|
+  | 0 | any part with cargo capacity | every wagon/hold can carry a road vehicle |
+  | 1 | only a part whose cargo is in the `oversized` class | nothing can carry (no default cargo is oversized) — needs a NewGRF which provides such cargo |
+  | **2 (default)** | only a part whose cargo is **bulk**, `oversized`, or the NewGRF "Vehicles" cargo (label `VEHI`) | bulk (hopper/open) wagons can carry — coal, ore, grain, fruit, sugar, toffee; wood/steel/goods vans, passenger carriages, mail vans, tank cars and aircraft do *not* |
+
+  Value 2 is the "GRF-aware" gate: it accepts the cargoes which can physically hold a road vehicle,
+  namely bulk cargo (`CargoClass::Bulk`), cargo a NewGRF marks as oversized (`CargoClass::Oversized`,
+  the stake/flatbed wagon / car ferry case), and the dedicated `VEHI` ("Vehicles") cargo which car
+  ferry and car carrier NewGRFs define for exactly this purpose. A stock game has neither an
+  `oversized` nor a `VEHI` cargo, so with it only bulk wagons (coal/ore/grain/…) qualify; a piece
+  goods or liquid cargo such as Wood, Steel, Goods or Oil does *not*. Road vehicles are always
+  *unloaded* regardless of the setting, so changing it never strands a vehicle which is already on
+  board. The regression suite opens the gate explicitly (`setting
+  vehicle.rv_transport_carrier_parts 0`) because its test savegame's carrier is a wood wagon; the gate
+  itself is covered by `testrun/verify_carrier_parts.ps1`.
 * Only station orders can be configured; carried road vehicles and carriers holding them cannot be
   sold until unloaded.

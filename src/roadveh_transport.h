@@ -29,6 +29,17 @@ static const uint8_t ORVTF_WAIT = 1 << 3;       ///< Keep waiting at this statio
 static const uint8_t ORVTF_UNLOAD_ALL = 1 << 4; ///< Unload every road vehicle here, ignoring the station each of them declares itself.
 
 /**
+ * Which parts of a carrier (train wagons, ship holds, aircraft compartments) may carry road vehicles.
+ * This is the "vehicle.rv_transport_carrier_parts" setting; a part always has to have room for the
+ * vehicle's weight on top of this.
+ */
+enum class RVTransportCarrierParts : uint8_t {
+	AnyPart = 0,                ///< Any part with cargo capacity.
+	OversizedOnly = 1,          ///< Only parts whose current cargo belongs to CargoClass::Oversized.
+	BulkOversizedOrVehicles = 2, ///< Only parts whose cargo is bulk, oversized, or the NewGRF "Vehicles" cargo (label 'VEHI').
+};
+
+/**
  * Selection criteria of a carrier's "load road vehicles" order: the loader only takes road vehicles
  * which satisfy every criterion which is in use ("no match, skip this vehicle"), in the same spirit
  * as the coupling parameters of the px-patch train coupling feature.

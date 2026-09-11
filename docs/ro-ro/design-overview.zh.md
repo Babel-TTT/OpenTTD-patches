@@ -74,7 +74,22 @@
 |---|---|---|---|
 | D1 | 谁能装 RV | 载体（火车/船/机）的**某节当前 cargo_type 属 CargoClass::Oversized**（运行时 `IsCargoInClass` 判定，cargotype.h:245） | 仅限固定虚拟货物/仅限专用车辆 |
 
-> D1 注：**0.73.1 自带货物表没有任何 Oversized 类货物**（默认货车只含 Passengers/Mail/…/PieceGoods 等，SA2 核对 table/cargo_const.h），所以默认内容下该门不会开启；要玩此特性需挂载定义了 oversized 货（运车货列/滚装船常见的 "Cars/Vehicles" 货）的 NewGRF，开发期另备一只测试 GRF。这与 MD"只能被能装 cc_oversized 的车装"的原意一致——**"可装性"由 NewGRF 内容自然供给，引擎零硬编码**。
+> **D1 修订（M11d，2026-09-11，已实现）**：原推荐"只允许 oversized 类货物的节"在**原版内容下完全不可用**（0.73.1 货物表没有任何 oversized 货物，见下注），会让整个特性开箱即死，也无法回归测试。**改为三档设置 `vehicle.rv_transport_carrier_parts`**（类别：专家设置；独立设置页"道路车辆运输"；`src/roadveh_transport.cpp: RVTransportPartCanCarry()`，`src/table/settings/game_settings.ini`）：
+>
+> | 值 | 规则 | 原版内容下的效果 |
+> |---|---|---|
+> | 0 | 任何有载货容量的节（`cargo_cap > 0`） | 全部车厢/货舱都收车 |
+> | 1 | 该节当前货物属 `CargoClass::Oversized`（**原 D1 的门**） | **谁都装不上**（无 oversized 货）→ 需运车类 NewGRF |
+> | **2（默认）** | 该节货物满足 **散货 `Bulk`**、**`Oversized`**、或**货物标签为 `VEHI`（"运载工具"）**任意一条 | 散货（敞车/漏斗车：煤、矿石、谷物、水果、糖、太妃糖）收车；木材/钢材/货物/邮件/油/乘客都不收车 |
+>
+> 档 2 是"**针对 GRF 特化**"的门（M11d 定稿，替换了中间尝试过的两种写法）：
+> 1. 原稿"只允许 Oversized"在原版内容下谁都装不上（无 oversized 货）；
+> 2. 中间尝试过的"子集判定（类别集合 ⊄ {乘客, 液体, 特殊}）"**实现上失效**——液体货物都额外带 `Potable`/`NonPotable` 口味位（原版 `Oil` = `{Liquid, NonPotable}`），子集判定会放行油罐车；改成"含乘客/液体即拒"虽能挡住罐车，但那是靠类别**排除法**猜意图，对 GRF 自定义货物仍不准；
+> 3. **现定稿：正面白名单** —— `IsCargoInClass(Bulk)` ∥ `IsCargoInClass(Oversized)` ∥ `CargoSpec::label == 'VEHI'`。运车类 NewGRF（汽车渡轮/汽车运输船/驮背车厢）按其本意提供三类之一的货物，引擎不需要猜；原版内容下只有散货车厢满足，其余（木材/钢材/货物/邮件/液体/乘客）一律拒绝。
+>
+> 判定只在**装载**时进行，**卸载不看此设置**（`RVTransportDetachAtStation` 不判容量门），所以中途切换设置不会把已在车上的 RV 丢在路上。三档均已用 `testrun\verify_carrier_parts.ps1` 无头验证（默认值为 2；同一节木材车厢在档 0 下 `rv_capacity=30t` 且 `attached=true`，档 1/2 下 `rv_capacity=0t` 且 `attached=false`）。**回归套件**在 `_common.ps1` 里统一先执行 `setting vehicle.rv_transport_carrier_parts 0`（测试存档的载体是木材车厢，属于被档 2 拒绝的货物）——即机制类脚本在"门全开"下跑，门本身由上面那支脚本覆盖。
+>
+> D1 注：**0.73.1 自带货物表没有任何 Oversized 类货物**（默认货车只含 Passengers/Mail/…/PieceGoods 等，SA2 核对 table/cargo_const.h），所以档 1 在原版内容下不会开启；要玩严格模式需挂载定义了 oversized 货（运车货列/滚装船常见的 "Cars/Vehicles" 货）的 NewGRF，开发期另备一只测试 GRF。这与 MD"只能被能装 cc_oversized 的车装"的原意一致——**"可装性"由 NewGRF 内容自然供给，引擎零硬编码**。
 | D2 | RV 能"上车"的门槛 | 载具一节一判，容量按运载单位扣除；超重拒绝（新闻提示） | 只在整列整船层校验 |
 | D3 | 匹配规则（v2） | 载体主动 + 等待队列 FIFO 扫描 + **条件表达式筛选**：逻辑式复用条件订单的变量/比较器/求值与编辑器（§4.1），**不匹配即跳过（RV 留在队列）**；默认提供"目的站匹配"预设子句防装错 | 无平行机制：slot 是表达式既有变量维度（SlotOccupancy/VehicleInSlot 等），精确班次预约再按需组合 `OT_SLOT`（§4.1） |
 | D4 | 装载/卸载地点 | 要求同一站实体(Station)内存在对应类型的公路停靠站（Bus/Truck 按 RV 当前货物类别），直通式优先 | 无公路设施也允许（纯逻辑消失/出现） |

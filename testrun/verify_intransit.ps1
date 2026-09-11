@@ -46,7 +46,9 @@ foreach ($i in 1..3) { try { $p.StandardInput.WriteLine('pause'); $p.StandardInp
 }
 
 Write-Output '== phase 1: load a road vehicle, then save while it is carried =='
-$log1 = Run-Ottd "-c `"$cfg`" -D -g `"$tmp`"" @('rvtransport sim firsttrain firstrv', 'rvtransport state firstrv', 'save roro_intransit', 'quit') 45 'log_intransit1.txt'
+# The test savegame's carrier wagon carries Wood, which the default gate (value 2) refuses; open it.
+# Phase 2 reloads the savegame this phase writes, so the value travels with it.
+$log1 = Run-Ottd "-c `"$cfg`" -D -g `"$tmp`"" @('setting vehicle.rv_transport_carrier_parts 0', 'rvtransport sim firsttrain firstrv', 'rvtransport state firstrv', 'save roro_intransit', 'quit') 45 'log_intransit1.txt'
 $log1 -split "`r?`n" | Where-Object { $_ -match 'sim:|vehicle #|successfully saved|Saving map|failed' } | Select-Object -First 8 | ForEach-Object { Write-Output $_ }
 if (-not (Test-Path $made)) { Write-Output 'FAIL: savegame was not written'; exit 1 }
 Write-Output ("saved: {0} bytes" -f (Get-Item $made).Length)
