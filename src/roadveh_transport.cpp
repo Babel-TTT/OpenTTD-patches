@@ -12,6 +12,10 @@
 #include "roadveh_transport.h"
 
 #include "cargotype.h"
+#include "console_func.h"
+#include "order_func.h"
+#include "strings_func.h"
+#include "town.h"
 #include "date_func.h"
 #include "debug.h"
 #include "direction_func.h"
@@ -229,7 +233,14 @@ uint8_t RVTransportToggleOrderFlag(uint8_t flags, uint8_t bit, bool is_road_vehi
 			break;
 
 		case ORVTF_UNLOAD:
-			flags = enabling ? (flags | ORVTF_UNLOAD) : (flags & ~ORVTF_UNLOAD);
+			flags = enabling ? (flags | ORVTF_UNLOAD) : (flags & ~(ORVTF_UNLOAD | ORVTF_UNLOAD_ALL));
+			break;
+
+		case ORVTF_UNLOAD_ALL:
+			/* Only a carrier unloads: for a road vehicle the flag would be meaningless. It implies
+			 * "unload road vehicles here", just with the vehicle's own declared destination ignored. */
+			if (is_road_vehicle) break;
+			flags = enabling ? (flags | ORVTF_UNLOAD_ALL | ORVTF_UNLOAD) : (flags & ~ORVTF_UNLOAD_ALL);
 			break;
 
 		default:
@@ -301,6 +312,26 @@ static void RVTransportRefreshCarrier(Vehicle *carrier, Vehicle *part)
 }
 
 /**
+ * Move a carried road vehicle on to its next order.
+ *
+ * A road vehicle which is loaded onto a carrier has done its "wait to be transported" order, so it is
+ * moved on to the next one: that is the order which says where it wants to get off (see
+ * RVTransportGetDeclaredDestination()), and it also means the vehicle continues its own schedule from
+ * the station it is dropped at instead of driving back to the station it was picked up at. The
+ * vehicle's own controller does not run while it is carried, so this is the only place which does it.
+ */
+static void RVTransportAdvanceCarriedVehicleOrder(Vehicle *rv)
+{
+	if (rv == nullptr || rv->GetNumOrders() == 0) return;
+	/* The same sequence the engine uses when a vehicle finishes an order (Vehicle::HandleWaiting()):
+	 * move the order index on, drop the current order and let the game work out the new one (which also
+	 * evaluates conditional orders). */
+	rv->IncrementImplicitOrderIndex();
+	rv->current_order.Free();
+	ProcessOrders(rv);
+}
+
+/**
  * Load one road vehicle onto a carrier part: the road vehicle leaves the road network
  * and is remembered by the carrier (single tick commit, no intermediate state).
  * @param force skip the cargo class / capacity checks (used by the debug self test).
@@ -353,6 +384,10 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 	 * stop is recomputed without it. */
 	if (!IsBayRoadStopTile(rv->tile)) RVTransportReleaseRoadStop(rv);
 
+	/* The road vehicle has done its "wait to be transported" order: move it on to its next one, which
+	 * is where it wants to get off. */
+	RVTransportAdvanceCarriedVehicleOrder(rv);
+
 	carrier->MarkDirty();              // the carrier is heavier now and the part looks loaded
 	RVTransportRefreshCarrier(carrier, part);
 	return true;
@@ -377,7 +412,7 @@ bool RVTransportAttachAuto(Vehicle *carrier, Vehicle *rv, bool force)
  * only required for bay stops (whose bays are counted by the stop itself, but where a second vehicle
  * on the same tile would overlap).
  */
-static bool FindFreeRoadStopTile(const Station *st, Vehicle *rv, TileIndex &out_tile, DiagDirection &out_dd)
+bool FindFreeRoadStopTile(const Station *st, Vehicle *rv, TileIndex &out_tile, DiagDirection &out_dd)
 {
 	for (int pass = 0; pass < 2; pass++) {
 		const TileArea &area = (pass == 0) ? st->bus_station : st->truck_station;
@@ -415,6 +450,115 @@ static bool FindFreeRoadStopTile(const Station *st, Vehicle *rv, TileIndex &out_
 }
 
 /**
+ * Debug (RoRo): print one station's road stops and whether the given road vehicle could be put down
+ * there, using exactly the lookup the unload transaction uses.
+ */
+void RVTransportDebugStation(const Vehicle *rv, const Station *st)
+{
+	if (st == nullptr) { IConsolePrint(CC_ERROR, "station not found"); return; }
+
+	IConsolePrint(CC_DEFAULT, "station #{} '{}' at 0x{:X} (town {}): bus area {}x{}, truck area {}x{}",
+			st->index.base(), GetString(STR_STATION_NAME, st->index), st->xy.base(),
+			(st->town != nullptr) ? st->town->index.base() : (uint16_t)UINT16_MAX,
+			st->bus_station.w, st->bus_station.h, st->truck_station.w, st->truck_station.h);
+
+	int stops = 0;
+	for (int pass = 0; pass < 2; pass++) {
+		const TileArea &area = (pass == 0) ? st->bus_station : st->truck_station;
+		for (TileIndex t : area) {
+			if (!IsAnyRoadStopTile(t)) continue;
+			RoadStop *rs = RoadStop::GetByTile(t, GetRoadStopType(t));
+			if (rs == nullptr) continue;
+			stops++;
+			if (IsBayRoadStopTile(t)) {
+				IConsolePrint(CC_DEFAULT, "  stop 0x{:X} bay: free_bay={} entrance_busy={} vehicle_on_tile={}",
+						t.base(), rs->HasFreeBay(), rs->IsEntranceBusy(),
+						(GetFirstVehicleOnTile(t, VehicleType::Road) != nullptr));
+			} else {
+				const RoadStop::Entry &ne = rs->GetEntry(DiagDirection::NE);
+				const RoadStop::Entry &nw = rs->GetEntry(DiagDirection::NW);
+				IConsolePrint(CC_DEFAULT, "  stop 0x{:X} drive-through: NE {}/{} NW {}/{}",
+						t.base(), ne.GetOccupied(), ne.GetLength(), nw.GetOccupied(), nw.GetLength());
+			}
+		}
+	}
+	IConsolePrint(CC_DEFAULT, "  road stop tiles found: {}", stops);
+
+	if (rv != nullptr) {
+		TileIndex tile = INVALID_TILE;
+		DiagDirection dd = DiagDirection::NE;
+		const bool ok = FindFreeRoadStopTile(st, const_cast<Vehicle *>(rv), tile, dd);
+		if (ok) {
+			IConsolePrint(CC_DEFAULT, "  rv #{} could be put down on tile 0x{:X} (exit dir {})", rv->index.base(), tile.base(), (int)dd);
+		} else {
+			IConsolePrint(CC_DEFAULT, "  rv #{} could NOT be put down here (no free road stop)", rv->index.base());
+		}
+	}
+}
+
+/**
+ * Debug (RoRo): one-shot dump of everything the road vehicle transport needs to make sense: every
+ * road vehicle with its state and declared destination, every carrier with its parts, its current
+ * order and the road vehicles it holds, and for each of those the station it is heading for.
+ */
+void RVTransportDebugDump()
+{
+	extern void UpdateVehicleTileHash(Vehicle *v, bool remove);
+
+	IConsolePrint(CC_DEFAULT, "-- road vehicles --");
+	for (const Vehicle *v : Vehicle::Iterate()) {
+		if (v->type != VehicleType::Road || !v->IsFrontEngine()) continue;
+		IConsolePrint(CC_DEFAULT, "rv #{} flags={} (wait={} carried={}) stopped={} hidden={} tile=0x{:X} cargo={}/{} declared_dest={} carried_by={} host_part={} weight={}",
+				v->index.base(), v->rv_transport_flags,
+				((v->rv_transport_flags & RVTF_WAITING) != 0), ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) != 0),
+				v->vehstatus.Test(VehState::Stopped), v->vehstatus.Test(VehState::Hidden), v->tile.base(),
+				v->cargo.StoredCount(), v->cargo_cap, RVTransportGetDeclaredDestination(v).base(),
+				v->transported_by.base(), v->transported_host_part.base(), v->transported_weight);
+	}
+
+	IConsolePrint(CC_DEFAULT, "-- carriers --");
+	for (const Vehicle *carrier : Vehicle::Iterate()) {
+		if (carrier->type == VehicleType::Road) continue;
+		if (!carrier->IsPrimaryVehicle()) continue;
+
+		const Station *st = Station::GetIfValid(carrier->current_order.GetDestination().ToStationID());
+		IConsolePrint(CC_DEFAULT, "carrier #{} type={} tile=0x{:X} order: type={} station={} rvflags={} (load={} unload={} unload_all={} match={} wait={}) -> station {} '{}'",
+				carrier->index.base(), (int)carrier->type, carrier->tile.base(), (int)carrier->current_order.GetType(),
+				carrier->current_order.IsType(OT_GOTO_STATION), carrier->current_order.GetRVTransportFlags(),
+				((carrier->current_order.GetRVTransportFlags() & ORVTF_LOAD) != 0),
+				((carrier->current_order.GetRVTransportFlags() & ORVTF_UNLOAD) != 0),
+				((carrier->current_order.GetRVTransportFlags() & ORVTF_UNLOAD_ALL) != 0),
+				((carrier->current_order.GetRVTransportFlags() & ORVTF_MATCH_DEST) != 0),
+				((carrier->current_order.GetRVTransportFlags() & ORVTF_WAIT) != 0),
+				st != nullptr ? (int)st->index.base() : -1,
+				st != nullptr ? GetString(STR_STATION_NAME, st->index) : std::string("<none>"));
+
+		int n = 0;
+		for (const Vehicle *part = carrier; part != nullptr; part = part->Next(), n++) {
+			IConsolePrint(CC_DEFAULT, "  part {}: #{} cargo={} cap={} stored={} rv_capacity={}t rv_used={}t holds_rv={}",
+					n, part->index.base(), (int)part->cargo_type, part->cargo_cap, part->cargo.StoredCount(),
+					RVTransportGetPartCapacityTonnes(part), RVTransportGetPartUsedTonnes(part), RVTransportPartHoldsRoadVehicles(part));
+		}
+
+		std::vector<const Vehicle *> carried;
+		RVTransportGetCarriedVehicles(carrier, carried);
+		for (const Vehicle *rv : carried) {
+			const StationID declared = RVTransportGetDeclaredDestination(rv);
+			IConsolePrint(CC_DEFAULT, "  holds rv #{} weight={}t declared_dest={} '{}' -> unloads here: {}",
+					rv->index.base(), rv->transported_weight,
+					(declared != StationID::Invalid()) ? (int)declared.base() : -1,
+					(declared != StationID::Invalid()) ? GetString(STR_STATION_NAME, declared) : std::string("<none>"),
+					(declared == StationID::Invalid() || (st != nullptr && declared == st->index)));
+		}
+
+		if (st != nullptr) {
+			const Vehicle *first = RVTransportFindFirstOnCarrier(carrier);
+			RVTransportDebugStation(first, st);
+		}
+	}
+}
+
+/**
  * Unload road vehicles carried by this carrier at the given station.
  * @return true if at least one road vehicle reached the road network.
  */
@@ -432,8 +576,9 @@ bool RVTransportDetachAtStation(Vehicle *carrier, Station *st, bool force)
 
 		/* Only unload a road vehicle which wants to be dropped here: the station of its own "be
 		 * unloaded here" order. A road vehicle which declares no destination at all is dropped at the
-		 * carrier's unload order, as it would otherwise never leave the carrier. */
-		if (!force) {
+		 * carrier's unload order, as it would otherwise never leave the carrier - and a carrier whose
+		 * order says "unload all road vehicles" drops everything, whatever the vehicles declare. */
+		if (!force && (carrier->current_order.GetRVTransportFlags() & ORVTF_UNLOAD_ALL) == 0) {
 			const StationID declared = RVTransportGetDeclaredDestination(v);
 			if (declared != StationID::Invalid() && declared != st->index) continue;
 		}
@@ -500,14 +645,28 @@ bool RVTransportDetachAtStation(Vehicle *carrier, Station *st, bool force)
 }
 
 /**
- * Station at which a road vehicle wants to be unloaded, taken from the first of its own
- * station orders which asks for unloading road vehicles ("declared destination").
+ * Station at which a road vehicle wants to be unloaded on the leg it is on: the first of its own
+ * station orders from the order it is executing on (that one included) which asks for unloading road
+ * vehicles ("declared destination").
+ *
+ * Both order positions matter: while the vehicle waits for a carrier, its current order is the "wait
+ * to be transported" one, so the answer is the *next* station it wants to get off at; once it has been
+ * loaded, RVTransportAdvanceCarriedVehicleOrder() has moved it on, so the answer is its current order.
+ * Reading only the first order of the whole list would keep a vehicle which is carried more than once
+ * (train from A to B, drive to C, ship from C to D) on board of every carrier after the first leg.
+ *
  * @return The station id, or an invalid id when the vehicle declares no destination.
- */StationID RVTransportGetDeclaredDestination(const Vehicle *rv)
+ */
+StationID RVTransportGetDeclaredDestination(const Vehicle *rv)
 {
 	if (rv == nullptr) return StationID::Invalid();
-	for (const Order *o : rv->Orders()) {
-		if (!o->IsType(OT_GOTO_STATION)) continue;
+	const VehicleOrderID num_orders = rv->GetNumOrders();
+	if (num_orders == 0) return StationID::Invalid();
+
+	const VehicleOrderID current = (rv->cur_real_order_index < num_orders) ? rv->cur_real_order_index : 0;
+	for (VehicleOrderID i = 0; i < num_orders; i++) {
+		const Order *o = rv->GetOrder(static_cast<VehicleOrderID>((current + i) % num_orders));
+		if (o == nullptr || !o->IsType(OT_GOTO_STATION)) continue;
 		if ((o->GetRVTransportFlags() & ORVTF_UNLOAD) != 0) return o->GetDestination().ToStationID();
 	}
 	return StationID::Invalid();
@@ -689,7 +848,13 @@ void RVTransportValidateAfterLoad()
 		}
 
 		const Vehicle *carrier = Vehicle::GetIfValid(v->transported_by);
-		if (carrier != nullptr && carrier->type != VehicleType::Road && carrier->First() == carrier) continue; // carried as expected
+		if (carrier != nullptr && carrier->type != VehicleType::Road && carrier->First() == carrier) {
+			/* Carried as expected. A savegame written before the road vehicle's order was advanced when
+			 * it was loaded still has the "wait to be transported" order as its current order: catch
+			 * up, so that it can be unloaded at the station it wants to get off at. */
+			if ((v->current_order.GetRVTransportFlags() & ORVTF_LOAD) != 0) RVTransportAdvanceCarriedVehicleOrder(v);
+			continue; // carried as expected
+		}
 
 		Debug(misc, 0, "RoRo: road vehicle #{} was carried by missing vehicle #{}", v->index.base(), v->transported_by.base());
 		v->transported_by = VehicleID::Invalid();

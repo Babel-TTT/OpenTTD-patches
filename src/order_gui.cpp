@@ -441,6 +441,7 @@ enum RVTransportWidgets : WidgetID {
 	WID_RVT_MATCH_DEST,       ///< Only take road vehicles heading for the carrier's next stop.
 	WID_RVT_WAIT,             ///< Keep waiting until road vehicles have been loaded.
 	WID_RVT_UNLOAD,           ///< Unload road vehicles here (for a road vehicle: be unloaded here).
+	WID_RVT_UNLOAD_ALL,       ///< Unload every road vehicle here, whatever station it declares itself.
 	WID_RVT_LOAD_STATE_LABEL, ///< Label of the candidate load state criterion.
 	WID_RVT_LOAD_STATE,       ///< Candidate load state criterion.
 	WID_RVT_CARGO_LABEL,      ///< Label of the candidate cargo criterion.
@@ -549,9 +550,13 @@ private:
 		this->SetWidgetLoweredState(WID_RVT_MATCH_DEST, (rvf & ORVTF_MATCH_DEST) != 0);
 		this->SetWidgetLoweredState(WID_RVT_WAIT, (rvf & ORVTF_WAIT) != 0);
 		this->SetWidgetLoweredState(WID_RVT_UNLOAD, (rvf & ORVTF_UNLOAD) != 0);
+		this->SetWidgetLoweredState(WID_RVT_UNLOAD_ALL, (rvf & ORVTF_UNLOAD_ALL) != 0);
 
 		this->GetWidget<NWidgetCore>(WID_RVT_LOAD)->SetString(is_rv ? STR_ORDER_DROP_WAIT_TO_BE_TRANSPORTED : STR_ORDER_DROP_LOAD_ROAD_VEHICLES);
 		this->GetWidget<NWidgetCore>(WID_RVT_UNLOAD)->SetString(is_rv ? STR_ORDER_DROP_BE_UNLOADED_HERE : STR_ORDER_DROP_UNLOAD_ROAD_VEHICLES);
+		/* A road vehicle "is unloaded here" itself; there is nothing for it to unload, so the option
+		 * to drop everything is only offered to carriers. */
+		this->SetWidgetDisabledState(WID_RVT_UNLOAD_ALL, is_rv);
 
 		/* The selection criteria only apply when road vehicles are loaded here, and a road vehicle's
 		 * own order has no use for them at all. */
@@ -735,6 +740,7 @@ public:
 			case WID_RVT_MATCH_DEST: this->ToggleFlag(ORVTF_MATCH_DEST); break;
 			case WID_RVT_WAIT:       this->ToggleFlag(ORVTF_WAIT); break;
 			case WID_RVT_UNLOAD:     this->ToggleFlag(ORVTF_UNLOAD); break;
+			case WID_RVT_UNLOAD_ALL: this->ToggleFlag(ORVTF_UNLOAD_ALL); break;
 
 			/* A dropdown widget has to open its list itself. */
 			case WID_RVT_LOAD_STATE:
@@ -839,6 +845,7 @@ static constexpr NWidgetPart _nested_rv_transport_widgets[] = {
 		NWidget(WWT_TEXTBTN, Colours::Grey, WID_RVT_MATCH_DEST), SetFill(1, 0), SetResize(1, 0), SetStringTip(STR_ORDER_DROP_RV_MATCH_DEST, STR_NULL),
 		NWidget(WWT_TEXTBTN, Colours::Grey, WID_RVT_WAIT), SetFill(1, 0), SetResize(1, 0), SetStringTip(STR_ORDER_DROP_WAIT_FOR_ROAD_VEHICLES, STR_NULL),
 		NWidget(WWT_TEXTBTN, Colours::Grey, WID_RVT_UNLOAD), SetFill(1, 0), SetResize(1, 0), SetStringTip(STR_ORDER_DROP_UNLOAD_ROAD_VEHICLES, STR_NULL),
+		NWidget(WWT_TEXTBTN, Colours::Grey, WID_RVT_UNLOAD_ALL), SetFill(1, 0), SetResize(1, 0), SetStringTip(STR_ORDER_DROP_UNLOAD_ALL_ROAD_VEHICLES, STR_ORDER_DROP_UNLOAD_ALL_ROAD_VEHICLES_TOOLTIP),
 	EndContainer(),
 	NWidget(WWT_PANEL, Colours::Grey),
 		NWidget(NWID_HORIZONTAL),
@@ -1398,6 +1405,10 @@ void DrawOrderString(const Vehicle *v, const Order *order, int order_index, int 
 				if ((rvf & ORVTF_UNLOAD) != 0) {
 					line.push_back(' ');
 					AppendStringInPlace(line, is_rv ? STR_ORDER_DROP_BE_UNLOADED_HERE : STR_ORDER_DROP_UNLOAD_ROAD_VEHICLES);
+				}
+				if (!is_rv && (rvf & ORVTF_UNLOAD_ALL) != 0) {
+					line.push_back(' ');
+					AppendStringInPlace(line, STR_ORDER_DROP_UNLOAD_ALL_ROAD_VEHICLES);
 				}
 				if (!is_rv && (rvf & ORVTF_MATCH_DEST) != 0) {
 					line.push_back(' ');

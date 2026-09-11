@@ -4725,6 +4725,8 @@ STR_ORDER_DROP_FULL_LOAD_ANY                                    :Full load any c
 STR_ORDER_DROP_NO_LOADING                                       :No loading
 STR_ORDER_DROP_LOAD_ROAD_VEHICLES                               :Load road vehicles
 STR_ORDER_DROP_UNLOAD_ROAD_VEHICLES                             :Unload road vehicles
+STR_ORDER_DROP_UNLOAD_ALL_ROAD_VEHICLES                         :Unload all road vehicles
+STR_ORDER_DROP_UNLOAD_ALL_ROAD_VEHICLES_TOOLTIP                 :{BLACK}Unload every road vehicle here, including the ones whose own schedule says they want to get off somewhere else. Without this, only the vehicles which name this station in their own orders are dropped here.
 STR_ORDER_DROP_RV_MATCH_DEST                                    :Only road vehicles for the next stop
 STR_ORDER_DROP_WAIT_FOR_ROAD_VEHICLES                           :Wait for road vehicles
 STR_ORDER_DROP_WAIT_TO_BE_TRANSPORTED                           :Wait to be transported

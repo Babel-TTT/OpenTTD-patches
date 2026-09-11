@@ -110,6 +110,12 @@ Behavioural notes:
 * **`Wait for road vehicles` waits indefinitely** (the `finished_loading` flag is held down, exactly
   like "Full load"); there is no engine-side timeout, so pair it with a timetable or only enable it
   where vehicles are actually available.
+* **A carried vehicle is moved on to its next order when it is loaded**, and a carrier only drops it at
+  the station that order names. A vehicle can therefore be carried several times on its way (train from
+  A to B, drive to C, ship from C to D): mark "wait to be transported" at each boarding station and
+  "be unloaded here" at each drop-off station. If a vehicle's own schedule does not name the station the
+  carrier unloads at, tick **Unload all road vehicles** on the carrier's unload order to drop everything
+  anyway (see the order window, unload dropdown, "Road vehicle transport...").
 * **Carriers are trains, ships and aircraft**; a road vehicle cannot carry another road vehicle.
 * **A carried road vehicle stays visible and reachable**: it remains in the vehicle/group lists (its
   status reads "Being transported"), and "centre on vehicle" / the follow camera look at the
@@ -208,6 +214,8 @@ config in `build/roro-test.cfg` and a savegame in `build/save/`; adapt the paths
 | `verify_attach.ps1` | forced attach/detach transactions, the carrying list, and weight accounting (the carrier's consist weight must include the carried vehicle) | PASS |
 | `verify_details.ps1` | the line accounting behind the details window's carried-vehicle list (`rvtransport vscroll`: the "vehicles" tab grows by a header plus one line per vehicle) | PASS |
 | `verify_wait_tick.ps1` | the waiting state against the game clock (it must survive ticking with a station order, and be given up when the order no longer asks for it) | PASS |
+| `verify_part_carrier.ps1` | loading through a *part* of a carrier (a multi-hold ship enters the station part by part) ends up on the carrier's front vehicle | PASS |
+| `verify_unload_match.ps1` | loading moves the vehicle on to its drop-off order, and a carrier only drops it at that station | PASS |
 
 Run them all at once with `powershell -File testrun\run_all.ps1 [-Jobs N] [-Only a.ps1,b.ps1]`,
 which runs them in parallel and prints a PASS/FAIL summary.

@@ -318,6 +318,7 @@ M1 → M2 → M3 → M4 必须依序（各自收口即"最小可玩"增量）；
 | `verify_details.ps1` | **载运清单的行数记账**（`rvtransport vscroll`）：装车前 `info=4 carried=0` → 装车后 `info=6 carried=1`，即"信息"页会多出表头 + 每台一行（这是清单能被滚到的前提；绘制本身需要 GUI，见 D.5 第 5 条） | `RESULT: PASS (the vehicles tab grows by the carried list: header plus one line per vehicle)` |
 | `verify_part_carrier.ps1` | **按"节"调用装载代码**（多舱段船的模型）：用调试命令 `rvtransport loadfrom <载体某节> <车>` 模拟"某一节进站跑装载代码"，检查车被挂到**载体车头**上（多舱段船以前就是因为把"节"当载体而卸不下车） | `loadfrom: part #7 -> carrier #6 … attached=true`、`carried rv #8 by=6 host_part=7` → `RESULT: PASS` |
 | `verify_wait_tick.ps1` | **等待状态与游戏时钟**（评审实测"卡车不再等待/装不上"的回归）：让游戏真的走 tick，检查当前订单是"站订单派生的装载中订单 + 等待旗标"时等待状态**保持**（修复前必被清掉），以及把该旗标取消后等待状态**被放弃** | `waiting flag readings: set \| set \| clear` → `RESULT: PASS` |
+| `verify_unload_match.ps1` | **装载推进订单 + 卸载比对**（多段接驳的关键）：装载后卡车的当前订单必须前进到"在此被卸下"那条（测试存档里 `3 -> 4`）；随后 `detach` 到**不是**它声明的那一站必须失败（留在车上），`detach` 到它声明的那一站必须成功 | `order index readings: 3 -> 4`、`detach: failed (on board=1)`、`detach: ok (on board=0)` → `RESULT: PASS` |
 | `verify_release.ps1` | **释放路径**（与载体销毁同一函数）：装载 → `rvtransport release` → 检查状态 | `RESULT: PASS (carried vehicle released and back on the road)` |
 | `verify_user_save.ps1` | 订单命令链验证（`rvtransport modify` load/unload/dest） | `modify: OK` |
 | `verify_toggle.ps1` | 勾选规则（与订单窗口共用 `RVTransportToggleOrderFlag()`） | `RESULT: PASS` |
@@ -427,6 +428,14 @@ rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（�
      - 装载侧：`RVTransportAttachAuto(那一节, …)` 会被 `part->First() != carrier` 直接拒掉 → 只有**恰好是车头的那一节**能装车（多舱段船等于只有一个舱能收车）；
      - 等待判定：`RVTransportCountOnCarrier(那一节) == 0` → 载体的"等待道路载具"也会算错。
      修法：`LoadUnloadVehicle()` 里的三处 RoRo 代码（装卸、等待装载、等待卸载）统一改用 **`front->First()`** 作为载体（火车本来就是车头，行为不变）。**验证**：新增 `verify_part_carrier.ps1`，用调试命令 `rvtransport loadfrom <某一节> <车>` 直接按"某节进站"调用装载代码，检查车被挂到车头上（`attached=true`、`by=6 host_part=7`）→ PASS；全量回归 15 脚本 ALL PASS。⚠ 真正的多舱段船需要 NewGRF 支持（`multi_part_ships`），自动化测试用"火车车厢当那一节"覆盖同一条代码路径，实船由评审复测。
+  9. 🔧 **M11f：多段接驳的"下车点"设计（评审定案，替代原来的"扫订单表第一条卸货订单"）**：评审复测发现船仍然卸不下车，用 `rvtransport dump` 读存档定位到**真正原因**——评审那辆卡车是**多段接驳**的：`2: Windywick 废车场 等待被运载 → 3: Jellywig 西站 在此被卸下 → 4: Tanglewood 西站 等待被运载 → 5: Tanglewood 码头 在此被卸下`（先用火车运一段，自己开一段，再用船运一段）。我原来的规则读"**订单表里第一条**带'在此被卸下'的订单"，于是船到 `Tanglewood 码头` 时读到的是第一段的 `Jellywig 西站` → 判定"你要在别站下"，把车留在船上。**评审提出的方案**（采用）：
+     1. **装载时把被运载车辆的订单推进到下一条**（`IncrementImplicitOrderIndex()` + `current_order.Free()` + `ProcessOrders()`，与引擎自己"走完一条订单"的写法一致）→ 它在被运载期间的**当前订单就是"在此被卸下"那一条**；
+     2. **卸载时比对**：`载体卸货订单的站 == 卡车当前订单的站`（且该订单带"在此被卸下"）才放下；没声明则兜底卸在载体卸货站。
+     附带好处：**修掉一个隐藏 bug** —— 原来放下车时不动订单索引，车的当前订单还停在"上车站等待被运载"，放下来后会**往回开**；现在放下时它的当前订单就是那一站，会像正常到站一样继续跑自己的下一条。
+     另加 **`ORVTF_UNLOAD_ALL`（订单窗第 5 个勾选框 `卸载所有道路载具`）**：载体说了算，忽略各车自己的声明全部放下（玩家的兜底开关）。
+     老存档迁移：`RVTransportValidateAfterLoad()` 里对"已在车上但当前订单仍在等车（带 RV_LOAD 旗标）"的车补一次推进。
+     **验证**：新增 `verify_unload_match.ps1`（`3 -> 4` 的索引推进 + 错站 `detach: failed` / 正确站 `detach: ok`）→ PASS；用评审存档实测 `declared_dest=10 'Tanglewood 码头' -> unloads here: true` ✓；全量回归 **16 脚本 ALL PASS**。
+  10. 🔧 **调试工具扩充**（都为定位上面这些问题而加，合并前剥离）：`rvtransport dump`（一次性打印所有卡车/载体/逐节/所载车/声明卸货站/所属订单站，并对每个载体判断"车能否卸在它当前订单的站"及原因）、`rvtransport station <站> [车]`（该站公路停靠站格与占用、能否放下）、`rvtransport setwaiting <载体> <车>`（把车置为在该载体订单站等待，不装载）、`rvtransport loadfrom <载体某节> <车>`（按"某节进站"调用装载代码）、`rvtransport setcurrent <车> <订单号> [loading]`（把某条订单设为当前订单）；`rvtransport orders` 现在打印**每条订单的目标站编号 + 站名**（游戏界面只显示名字，而两个站可以重名，这一条是这次排查的关键）；`rvtransport modify/orderflag` 支持 `unloadall` 旗标。另有通用探针 `testrun/probe_save.ps1 -SavePath <存档> -Commands …`，可直接把评审存档读进来跑任意调试命令。
 
 - ⏳ **待办**：联机 sync test；性能验收（500 台待运 + 20 节车单次装货扫描）；合并前剥离 `rvtransport` 调试命令；M11b/M11c 的人工复测（改命令后等待标记消失、载体详情窗"信息"页底部的载运清单、载体满载外观）。
 

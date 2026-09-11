@@ -4709,6 +4709,8 @@ STR_ORDER_DROP_FULL_LOAD_ANY                                    :满载任一货
 STR_ORDER_DROP_NO_LOADING                                       :不装载
 STR_ORDER_DROP_LOAD_ROAD_VEHICLES                               :装载道路载具
 STR_ORDER_DROP_UNLOAD_ROAD_VEHICLES                             :卸载道路载具
+STR_ORDER_DROP_UNLOAD_ALL_ROAD_VEHICLES                         :卸载所有道路载具
+STR_ORDER_DROP_UNLOAD_ALL_ROAD_VEHICLES_TOOLTIP                 :{BLACK}无视每台车自己订单里声明的卸货站，把车上的道路载具全部卸在这里。不勾选时，只卸"自己的订单写着要在本站被卸下"的车。
 STR_ORDER_DROP_RV_MATCH_DEST                                    :只装载去下一站的道路载具
 STR_ORDER_DROP_WAIT_FOR_ROAD_VEHICLES                           :等待道路载具
 STR_ORDER_DROP_WAIT_TO_BE_TRANSPORTED                           :等待被运载

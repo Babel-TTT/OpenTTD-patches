@@ -31,6 +31,7 @@ $all = @(
     'verify_wait_tick.ps1',
     'verify_attach.ps1',
     'verify_part_carrier.ps1',
+    'verify_unload_match.ps1',
     'verify_intransit.ps1',
     'verify_sim.ps1',
     'verify_user_save.ps1',

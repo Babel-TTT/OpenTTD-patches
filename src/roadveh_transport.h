@@ -26,6 +26,7 @@ static const uint8_t ORVTF_LOAD   = 1 << 0; ///< This station order loads road v
 static const uint8_t ORVTF_UNLOAD = 1 << 1; ///< This station order unloads road vehicles from the carrier.
 static const uint8_t ORVTF_MATCH_DEST = 1 << 2; ///< Only load road vehicles whose declared unload station equals the carrier's next stop.
 static const uint8_t ORVTF_WAIT = 1 << 3;       ///< Keep waiting at this station until road vehicles have been loaded.
+static const uint8_t ORVTF_UNLOAD_ALL = 1 << 4; ///< Unload every road vehicle here, ignoring the station each of them declares itself.
 
 /**
  * Selection criteria of a carrier's "load road vehicles" order: the loader only takes road vehicles
@@ -156,6 +157,12 @@ bool RVTransportPartHoldsRoadVehicles(const Vehicle *part);
  * carries road vehicles (the part is reported as full).
  */
 uint16_t RVTransportExtraCargoAmount(const Vehicle *part);
+
+/** Debug (RoRo): print one station's road stops and whether this road vehicle could be put down. */
+void RVTransportDebugStation(const Vehicle *rv, const Station *st);
+
+/** Debug (RoRo): one-shot dump of every road vehicle, carrier, part and station involved. */
+void RVTransportDebugDump();
 
 /**
  * Vehicle whose position represents this vehicle on the map: a carried road vehicle is where its

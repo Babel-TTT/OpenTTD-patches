@@ -4588,7 +4588,8 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		uint8_t bit = 0;
 		if (StrEqualsIgnoreCase(argv[3], "load")) bit = ORVTF_LOAD;
 		else if (StrEqualsIgnoreCase(argv[3], "unload")) bit = ORVTF_UNLOAD;
-		else { IConsolePrint(CC_ERROR, "flag must be 'load' or 'unload'"); return true; }
+		else if (StrEqualsIgnoreCase(argv[3], "unloadall")) bit = ORVTF_UNLOAD_ALL;
+		else { IConsolePrint(CC_ERROR, "flag must be 'load', 'unload' or 'unloadall'"); return true; }
 		v->current_order.GetRVTransportFlagsRef() |= bit;
 		Order *o = v->GetOrder(v->cur_real_order_index);
 		if (o != nullptr) o->GetRVTransportFlagsRef() |= bit;
@@ -4608,7 +4609,8 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		else if (StrEqualsIgnoreCase(argv[4], "unload")) bit = ORVTF_UNLOAD;
 		else if (StrEqualsIgnoreCase(argv[4], "dest")) bit = ORVTF_MATCH_DEST;
 		else if (StrEqualsIgnoreCase(argv[4], "wait")) bit = ORVTF_WAIT;
-		else { IConsolePrint(CC_ERROR, "flag must be 'load', 'unload', 'dest' or 'wait'"); return true; }
+		else if (StrEqualsIgnoreCase(argv[4], "unloadall")) bit = ORVTF_UNLOAD_ALL;
+		else { IConsolePrint(CC_ERROR, "flag must be 'load', 'unload', 'dest', 'wait' or 'unloadall'"); return true; }
 		const Order *o = v->GetOrder(order_index);
 		if (o == nullptr) { IConsolePrint(CC_ERROR, "order {} not found (vehicle has {} orders)", order_index, v->GetNumOrders()); return true; }
 		uint8_t nflags = o->GetRVTransportFlags();
@@ -4642,7 +4644,8 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		else if (StrEqualsIgnoreCase(argv[4], "unload")) bit = ORVTF_UNLOAD;
 		else if (StrEqualsIgnoreCase(argv[4], "dest")) bit = ORVTF_MATCH_DEST;
 		else if (StrEqualsIgnoreCase(argv[4], "wait")) bit = ORVTF_WAIT;
-		else { IConsolePrint(CC_ERROR, "flag must be 'load', 'unload', 'dest' or 'wait'"); return true; }
+		else if (StrEqualsIgnoreCase(argv[4], "unloadall")) bit = ORVTF_UNLOAD_ALL;
+		else { IConsolePrint(CC_ERROR, "flag must be 'load', 'unload', 'dest', 'wait' or 'unloadall'"); return true; }
 		const Order *o = v->GetOrder(order_index);
 		if (o == nullptr) { IConsolePrint(CC_ERROR, "order {} not found (vehicle has {} orders)", order_index, v->GetNumOrders()); return true; }
 		const uint8_t old_flags = o->GetRVTransportFlags();
@@ -4711,12 +4714,23 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 			const Order *o = v->GetOrder(i);
 			if (o == nullptr) continue;
 			const uint8_t rvf = o->GetRVTransportFlags();
-			IConsolePrint(CC_DEFAULT, "  [{}] station={} depot={} waypoint={} load={} unload={} rvflags={}{}{}{}",
+			/* The station of a station order is printed by id and name: the game itself only shows the
+			 * name, and two stations can share one. */
+			std::string dest = "<none>";
+			int dest_id = -1;
+			if (o->IsType(OT_GOTO_STATION)) {
+				const StationID st_id = o->GetDestination().ToStationID();
+				dest_id = (int)st_id.base();
+				dest = Station::IsValidID(st_id) ? GetString(STR_STATION_NAME, st_id) : std::string("<invalid>");
+			}
+			IConsolePrint(CC_DEFAULT, "  [{}] station={} depot={} waypoint={} dest={} '{}' load={} unload={} rvflags={}{}{}{}{}",
 					i, o->IsType(OT_GOTO_STATION), o->IsType(OT_GOTO_DEPOT), o->IsType(OT_GOTO_WAYPOINT),
+					dest_id, dest,
 					(int)o->GetLoadType(), (int)o->GetUnloadType(), rvf,
 					((rvf & ORVTF_LOAD) != 0) ? " RV_LOAD" : "",
 					((rvf & ORVTF_UNLOAD) != 0) ? " RV_UNLOAD" : "",
-					((rvf & ORVTF_MATCH_DEST) != 0) ? " RV_MATCH_DEST" : "");
+					((rvf & ORVTF_MATCH_DEST) != 0) ? " RV_MATCH_DEST" : "",
+					((rvf & ORVTF_UNLOAD_ALL) != 0) ? " RV_UNLOAD_ALL" : "");
 		}
 		return true;
 	}
@@ -4955,6 +4969,26 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		IConsolePrint(CC_DEFAULT, "setcurrent: vehicle #{} order {} type={} station={} rvflags={} loading={}",
 				v->index.base(), order_index, (int)v->current_order.GetType(), v->current_order.IsType(OT_GOTO_STATION),
 				v->current_order.GetRVTransportFlags(), v->current_order.IsType(OT_LOADING));
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "dump")) {
+		/* Debug: dump everything about the road vehicle transport in this game (road vehicles with their
+		 * state and declared destination, carriers with their parts, orders and carried vehicles, and
+		 * whether the vehicles on board could be put down at the station the carrier is heading for). */
+		RVTransportDebugDump();
+		return true;
+	}
+
+	if (StrEqualsIgnoreCase(argv[1], "station")) {
+		/* Debug: rvtransport station <station_id> [rv_id] - why can (not) this road vehicle be put
+		 * down at this station? */
+		if (argv.size() < 3 || argv.size() > 4) return false;
+		const StationID st_id = ParseType<StationID>(argv[2]).value_or(StationID::Invalid());
+		Station *st = Station::GetIfValid(st_id);
+		if (st == nullptr) { IConsolePrint(CC_ERROR, "station not found"); return true; }
+		Vehicle *rv = (argv.size() == 4) ? get_veh(argv[3]) : nullptr;
+		RVTransportDebugStation(rv, st);
 		return true;
 	}
 
