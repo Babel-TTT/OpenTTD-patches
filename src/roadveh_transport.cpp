@@ -412,6 +412,7 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 		RoadVehicle::From(u)->state = DiagDirToDiagTrackdir(DirToDiagDir(u->direction));
 		UpdateVehicleTileHash(u, true);   // off the road network (like virtual vehicles)
 		u->UpdateIsDrawn();
+		u->Vehicle::UpdateViewport(true); // appears/disappears: mark the area dirty
 	}
 
 	/* Drive-through stop: the vehicle is off the road network now, so the cached occupancy of the
@@ -547,11 +548,20 @@ void RVTransportDebugDump()
 	IConsolePrint(CC_DEFAULT, "-- road vehicles --");
 	for (const Vehicle *v : Vehicle::Iterate()) {
 		if (v->type != VehicleType::Road || !v->IsFrontEngine()) continue;
-		IConsolePrint(CC_DEFAULT, "rv #{} flags={} (wait={} carried={}) stopped={} hidden={} tile=0x{:X} cargo={}/{} declared_dest={} carried_by={} host_part={} weight={}",
+		const Order *cur = (v->cur_real_order_index < v->GetNumOrders()) ? v->GetOrder(v->cur_real_order_index) : nullptr;
+		const StationID cur_station = (cur != nullptr && cur->IsType(OT_GOTO_STATION)) ? cur->GetDestination().ToStationID() : StationID::Invalid();
+		IConsolePrint(CC_DEFAULT, "rv #{} flags={} (wait={} carried={}) vehstatus=0x{:X} stopped={} hidden={} drawn={} state={} progress={} speed={} subspeed={} load_unload_ticks={} in_loading_list={} payment={} tile=0x{:X} is_station_tile={} cargo={}/{} order#{} type={} dest={} '{}' declared_dest={} carried_by={} host_part={} weight={}",
 				v->index.base(), v->rv_transport_flags,
 				((v->rv_transport_flags & RVTF_WAITING) != 0), ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) != 0),
-				v->vehstatus.Test(VehState::Stopped), v->vehstatus.Test(VehState::Hidden), v->tile.base(),
-				v->cargo.StoredCount(), v->cargo_cap, RVTransportGetDeclaredDestination(v).base(),
+				v->vehstatus.base(), v->vehstatus.Test(VehState::Stopped), v->vehstatus.Test(VehState::Hidden),
+				v->IsDrawn(), (int)RoadVehicle::From(v)->state, v->progress, v->cur_speed, v->subspeed,
+				v->load_unload_ticks, RVTransportDebugStationLists(v), (v->cargo_payment != nullptr),
+				v->tile.base(), IsAnyRoadStopTile(v->tile),
+				v->cargo.StoredCount(), v->cargo_cap, v->cur_real_order_index,
+				(cur != nullptr) ? (int)cur->GetType() : -1,
+				(cur_station != StationID::Invalid()) ? (int)cur_station.base() : -1,
+				(cur_station != StationID::Invalid()) ? GetString(STR_STATION_NAME, cur_station) : std::string("<none>"),
+				RVTransportGetDeclaredDestination(v).base(),
 				v->transported_by.base(), v->transported_host_part.base(), v->transported_weight);
 	}
 
@@ -665,6 +675,7 @@ bool RVTransportDetachAtStation(Vehicle *carrier, Station *st, bool force)
 			u->vehstatus.Reset(VehState::Stopped);
 			UpdateVehicleTileHash(u, false);   // back on the road network
 			u->UpdateIsDrawn();
+			u->Vehicle::UpdateViewport(true); // appears/disappears: mark the area dirty
 		}
 
 		/* Let the road stop itself account for the vehicle: a parking bay is allocated, or the
@@ -684,6 +695,7 @@ bool RVTransportDetachAtStation(Vehicle *carrier, Station *st, bool force)
 				u->cur_speed = 0;
 				UpdateVehicleTileHash(u, true);
 				u->UpdateIsDrawn();
+				u->Vehicle::UpdateViewport(true); // appears/disappears: mark the area dirty
 			}
 			continue;
 		}
@@ -797,7 +809,7 @@ bool RVTransportOrderAllowsCandidate(const Vehicle *carrier, const Vehicle *rv)
 		if (RVTransportGetDeclaredDestination(rv) != RVTransportGetNextCarrierStop(carrier)) return false;
 	}
 
-	/* Trace restrict slot ("路签"): the candidate must be an occupant of that slot, which is how a
+	/* Trace restrict slot ("璺"): the candidate must be an occupant of that slot, which is how a
 	 * specific road vehicle can be picked (the same mechanism the px-patch coupling feature uses). */
 	if (const uint16_t slot_raw = order.GetRVTransportSlot(); slot_raw != 0) {
 		const TraceRestrictSlot *slot = TraceRestrictSlot::GetIfValid(TraceRestrictSlotID{static_cast<uint16_t>(slot_raw - 1)});
@@ -979,6 +991,7 @@ void RVTransportForceRelease(Vehicle *rv)
 			UpdateVehicleTileHash(u, false);   // back on the road network
 		}
 		u->UpdateIsDrawn();
+		u->Vehicle::UpdateViewport(true); // appears/disappears: mark the area dirty
 	}
 }
 

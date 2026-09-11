@@ -10,6 +10,7 @@ param(
     [string[]]$Commands = @('rvtransport list'),
     [string]$Config = '',
     [int]$ReadyTimeoutSec = 180,
+    [double]$DelaySec = 1.2,
     [string]$LogName = 'log_probe_save.txt'
 )
 
@@ -27,7 +28,7 @@ foreach ($c in $Commands) { $cmdList += ($c -split ',') | Where-Object { $_ } }
 # The savegames of a tester may use many NewGRFs, so allow a long time for the load.
 $cmds = @('pause') + $cmdList + @('quit')
 $txt = Invoke-RoRoTest -Tag 'probe' -Exe $exe -Config $Config -Savegame $SavePath -Commands $cmds `
-    -LogName $LogName -DelaySec 1.2 -ReadyTimeoutSec $ReadyTimeoutSec
+    -LogName $LogName -DelaySec $DelaySec -ReadyTimeoutSec $ReadyTimeoutSec
 
 $txt -split "`r?`n" | Where-Object {
     $_ -match 'rv #|carrier|part \d+:|holds rv|station #|stop 0x|road stop|declared|order:|vscroll|carried|Assertion|crash|error'
