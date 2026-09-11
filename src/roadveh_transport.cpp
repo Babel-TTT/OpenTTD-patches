@@ -183,10 +183,16 @@ void RVTransportTickWaiting(Vehicle *rv)
 	if (rv == nullptr || rv->type != VehicleType::Road) return;
 	if ((rv->rv_transport_flags & RVTF_WAITING) == 0) return;
 
-	/* The vehicle still waits only while its current order asks for it, which is the same condition
-	 * under which the waiting state was entered (Vehicle::BeginLoading()). */
-	const Order &order = rv->current_order;
-	if (order.IsType(OT_GOTO_STATION) && (order.GetRVTransportFlags() & ORVTF_LOAD) != 0) return;
+	/* The vehicle keeps waiting while the order it is executing asks for it. While it stands at the
+	 * station its current order is the *loading* order which Vehicle::BeginLoading() derived from the
+	 * station order (the transport flags survive that conversion), so look at the station order in the
+	 * order list instead: that is also what makes a change made in the order window take effect. */
+	const Order *order = &rv->current_order;
+	if (order->IsType(OT_LOADING)) {
+		const Order *listed = rv->GetOrder(rv->cur_real_order_index);
+		if (listed != nullptr) order = listed;
+	}
+	if ((order->IsType(OT_GOTO_STATION) || order->IsType(OT_LOADING)) && (order->GetRVTransportFlags() & ORVTF_LOAD) != 0) return;
 
 	RVTransportSetWaiting(rv, false);
 }

@@ -85,10 +85,11 @@ Carried road vehicles are visible from the carrier's side too:
   cargo would use: the default "half the capacity is loaded" rule for trains, and the
   `stored * totalsets / capacity` rule for NewGRF sets). Default ships and aircraft have no
   loaded/unloaded variant, so nothing changes visually for them;
-* the carrier's **detail window lists** what it carries — the train "vehicles" tab ends with a
+* the carrier's **detail window lists** what it carries — the top of the window shows a *Carrying N
+  road vehicles* line as soon as it holds any, the train "vehicles" (information) tab ends with a
   *Carried road vehicles:* section (scroll that tab to the bottom; its scrollbar accounts for the
-  extra lines), ships and aircraft get one at the bottom of their details panel (the window grows
-  and shrinks with the number of vehicles on board);
+  extra lines), and ships and aircraft get the same list at the bottom of their details panel (the
+  window grows and shrinks with the number of vehicles on board);
 * a train's consist **weighs more** while it carries road vehicles (they are added to the consist
   weight, so acceleration, running cost, bridge limits, and the "performance" tab all see them).
   `rvtransport state <train>` prints `carried=`/`total_incl_carried=`/`own=`. Ships and aircraft
@@ -182,6 +183,7 @@ rvtransport criteria <vehicle> <order> slot any|<slot_id>
 rvtransport carried <vehicle>                       # the road vehicles a carrier holds
 rvtransport parts <vehicle>                         # per carrier part: cargo/cap/stored/rv_capacity/rv_used/holds_rv
 rvtransport vscroll <vehicle>                       # line count of every tab of the train details window
+rvtransport setcurrent <vehicle> <order> [loading]  # make an order the current one (test aid)
 rvtransport mkslot <name> [max_occupancy]   # create a road vehicle slot (debug)
 rvtransport slot <vehicle> <slot_id> on|off # add/remove a vehicle from a slot (debug)
 rvtransport attach|detach <carrier> <rv|station> [force]  # run the load/unload transactions directly
@@ -205,6 +207,10 @@ config in `build/roro-test.cfg` and a savegame in `build/save/`; adapt the paths
 | `smoke_m2a.ps1` | empty map + `rvtransport` commands, crash watch | PASS |
 | `verify_attach.ps1` | forced attach/detach transactions, the carrying list, and weight accounting (the carrier's consist weight must include the carried vehicle) | PASS |
 | `verify_details.ps1` | the line accounting behind the details window's carried-vehicle list (`rvtransport vscroll`: the "vehicles" tab grows by a header plus one line per vehicle) | PASS |
+| `verify_wait_tick.ps1` | the waiting state against the game clock (it must survive ticking with a station order, and be given up when the order no longer asks for it) | PASS |
+
+Run them all at once with `powershell -File testrun\run_all.ps1 [-Jobs N] [-Only a.ps1,b.ps1]`,
+which runs them in parallel and prints a PASS/FAIL summary.
 | `verify_intransit.ps1` | carried state survives save/load, then unloads | PASS |
 | `verify_sim.ps1` | waiting → station scan → load chain on a real map | PASS |
 | `verify_user_save.ps1` | order command chain (`load`/`unload`/`dest`) | PASS |

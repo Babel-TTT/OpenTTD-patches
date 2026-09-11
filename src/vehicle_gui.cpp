@@ -3087,6 +3087,7 @@ struct VehicleDetailsWindow : Window {
 	bool vehicle_slots_line_shown = false;
 	bool vehicle_speed_restriction_line_shown = false;
 	bool vehicle_speed_adaptation_line_shown = false;
+	bool vehicle_carried_line_shown = false;   ///< RoRo: "carrying N road vehicles" is shown at the top.
 
 	enum DropDownAction {
 		VDWDDA_CLEAR_SPEED_RESTRICTION,
@@ -3209,6 +3210,12 @@ struct VehicleDetailsWindow : Window {
 		return (v->type == VehicleType::Train && _settings_game.vehicle.train_speed_adaptation);
 	}
 
+	/** RoRo: does this carrier hold road vehicles (then the count is shown at the top)? */
+	bool ShouldShowCarriedLine(const Vehicle *v) const
+	{
+		return v->type != VehicleType::Road && RVTransportCountOnCarrier(v) > 0;
+	}
+
 	std::vector<TraceRestrictSlotID> GetVehicleSlots(const Vehicle *v) const
 	{
 		std::vector<TraceRestrictSlotID> slots;
@@ -3233,12 +3240,14 @@ struct VehicleDetailsWindow : Window {
 				this->vehicle_slots_line_shown = ShouldShowSlotsLine(v);
 				this->vehicle_speed_restriction_line_shown = ShouldShowSpeedRestrictionLine(v);
 				this->vehicle_speed_adaptation_line_shown = ShouldShowSpeedAdaptationLine(v);
+				this->vehicle_carried_line_shown = ShouldShowCarriedLine(v);
 				int lines = 4;
 				if (this->vehicle_group_line_shown) lines++;
 				if (this->vehicle_weight_ratio_line_shown) lines++;
 				if (this->vehicle_slots_line_shown) lines++;
 				if (this->vehicle_speed_restriction_line_shown) lines++;
 				if (this->vehicle_speed_adaptation_line_shown) lines++;
+				if (this->vehicle_carried_line_shown) lines++;
 				size.height = lines * GetCharacterHeight(FontSize::Normal) + padding.height;
 
 				format_buffer buffer;
@@ -3535,11 +3544,20 @@ struct VehicleDetailsWindow : Window {
 					tr.top += GetCharacterHeight(FontSize::Normal);
 				}
 
+				/* RoRo: a carrier says how many road vehicles it has on board, without the player
+				 * having to open the "information" tab and scroll to the end of the vehicle list. */
+				bool should_show_carried = this->ShouldShowCarriedLine(v);
+				if (should_show_carried) {
+					DrawString(tr, GetString(STR_VEHICLE_STATUS_CARRYING_ROAD_VEHICLES, RVTransportCountOnCarrier(v)));
+					tr.top += GetCharacterHeight(FontSize::Normal);
+				}
+
 				if (this->vehicle_weight_ratio_line_shown != should_show_weight_ratio ||
 						this->vehicle_weight_ratio_line_shown != should_show_weight_ratio ||
 						this->vehicle_slots_line_shown != should_show_slots ||
 						this->vehicle_speed_restriction_line_shown != should_show_speed_restriction ||
-						this->vehicle_speed_adaptation_line_shown != should_show_speed_adaptation) {
+						this->vehicle_speed_adaptation_line_shown != should_show_speed_adaptation ||
+						this->vehicle_carried_line_shown != should_show_carried) {
 					const_cast<VehicleDetailsWindow *>(this)->ReInit();
 				}
 				break;

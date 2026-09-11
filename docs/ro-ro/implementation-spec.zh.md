@@ -305,6 +305,8 @@ M1 → M2 → M3 → M4 必须依序（各自收口即"最小可玩"增量）；
 
 ### D.3 验证手册（全部自包含，不使用玩家存档）
 
+> **怎么跑**：`powershell -File testrun\run_all.ps1 [-Jobs N] [-Only a.ps1,b.ps1]` 会并行跑下面这些脚本并汇总 PASS/FAIL（默认 4 个并行）；脚本也可以单独跑。2026-09-11 起脚本内部改成"探针轮询等存档加载完 + 1 秒命令间隔"（`testrun\_common.ps1` 的 `Invoke-RoRoTest`），单个脚本从约 70–190 秒降到十几秒（测试存档实测 1.2 秒就加载完，原来写死等 45 秒）。
+
 | 脚本（`testrun\`） | 作用 | 期望输出 |
 |---|---|---|
 | `verify_oldsave.ps1` | 基线 exe 生成旧档 → fork 加载 | `step1: OK` / `step2: PASS (fork loads pristine 0.73.1 savegame)` |
@@ -314,6 +316,7 @@ M1 → M2 → M3 → M4 必须依序（各自收口即"最小可玩"增量）；
 | `verify_sim.ps1` | 在真实存档上跑"等待 → 站内扫描 → 装载"完整链路 | `sim: scan found=true attached=true carrying=1` |
 | `verify_attach.ps1` | 强制装载/卸载事务、载运清单与**重量记账**（`weights: carried=… total_incl_carried=… own=…`，装卸前后各读一次） | `attach`/`detach: ok`、`carrier #6 holds 1 road vehicle`、`RESULT: PASS (attach/detach, carrying list, and the carrier weight includes the carried vehicle)` |
 | `verify_details.ps1` | **载运清单的行数记账**（`rvtransport vscroll`）：装车前 `info=4 carried=0` → 装车后 `info=6 carried=1`，即"信息"页会多出表头 + 每台一行（这是清单能被滚到的前提；绘制本身需要 GUI，见 D.5 第 5 条） | `RESULT: PASS (the vehicles tab grows by the carried list: header plus one line per vehicle)` |
+| `verify_wait_tick.ps1` | **等待状态与游戏时钟**（评审实测"卡车不再等待/装不上"的回归）：让游戏真的走 tick，检查当前订单是"站订单派生的装载中订单 + 等待旗标"时等待状态**保持**（修复前必被清掉），以及把该旗标取消后等待状态**被放弃** | `waiting flag readings: set \| set \| clear` → `RESULT: PASS` |
 | `verify_release.ps1` | **释放路径**（与载体销毁同一函数）：装载 → `rvtransport release` → 检查状态 | `RESULT: PASS (carried vehicle released and back on the road)` |
 | `verify_user_save.ps1` | 订单命令链验证（`rvtransport modify` load/unload/dest） | `modify: OK` |
 | `verify_toggle.ps1` | 勾选规则（与订单窗口共用 `RVTransportToggleOrderFlag()`） | `RESULT: PASS` |
@@ -413,7 +416,11 @@ rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（�
      - **（a）`verify_destroy` 稳定复现的那次**：刷新被影响的那一节时，最初写了 `Vehicle::UpdateViewportDeferred()`。它跟"立即版" `Vehicle::UpdateViewport()` 不同，**在专用服务器（headless）上不会提前返回**：它把"新的视口哈希桶 + 车辆裸指针"塞进延迟队列，同时立刻改写车辆的 `coord`，而真正的哈希链更新要等队列结算（队列只在视口绘制里结算，专用服务器永远不结算）。于是哈希链与坐标不一致，这种状态下删除车辆（例如销毁载体）就会顺着失效指针写内存（`C0000005`，写入地址 0）。修法：这里只做 `InvalidateImageCache()` + 立即版 `Vehicle::UpdateViewport(true)`（headless 下直接跳过），重量刷新交给 `MarkDirty()`。**经验：除非能确定队列会在车辆被删除前结算，否则不要用 `UpdateViewportDeferred()`**（顺带确认 `Train::MarkDirty()` 已经会遍历整列并清图像缓存，所以最初多写的 `ConsistChanged()` 也是多余的，已去掉）。
      - **（b）评审实机崩溃 `crash-20260911T125152Z`（详情窗"信息"页必崩）**：`DrawTrainDetails()` 的**形参 `v` 被它自己的循环当成循环变量**（`for (; v != nullptr …; v = v->GetNextVehicle())`，循环结束时 `v` 必然是 `nullptr`），而我把"载运的道路载具"清单块加在了循环**之后**、却继续用 `v`：`RVTransportGetCarriedVehicles(Vehicle::Get(v->index), …)` → 对空指针读 `offsetof(Vehicle, index)`（= `0x34`）→ `C0000005` 读地址 `0x34`。**因此只要"信息"页画到编组末尾就必崩**，与车上有没有卡车无关 —— 这正是评审"找不到载运清单"的原因（清单标题在崩溃点之后才画）。定位方式是拿 exe 里的 DWARF 调试信息把崩溃日志的裸地址换算回源码（由栈底 `__tmainCRTStartup` 反推模块基址 → RVA → `addr2line -f -C -i`），直接落到 `train_gui.cpp:528`。修法：进入循环前先保存车头（`const Train *front = v;`），清单块只用 `front`；顺带这写法**天生免疫空指针**（`RVTransportGetCarriedVehicles()` 对 `nullptr` 直接返回空表）。
      - **为什么回归没抓到（重要经验）**：12/13 个脚本跑的是 `-D` 专用服务器，**根本不画窗口**（不执行 `UpdateWindows()`，精灵数据也不加载），GUI 代码等于零覆盖。我试过用"专用服务器 + 真 blitter（`-D -b 32bpp-simple`）+ 调试命令直调绘制函数"来做 headless 绘制测试：先发现 `-D` 会把 blitter 强制设成 `null`（`-b` 必须写在 `-D` **之后**），换成真 blitter 后又发现**即使车里空着**，在专用服务器上画文字/精灵本身就会在引擎内部崩（`DrawString` → `format_buffer` 析构），所以这条路走不通，相关测试钩子已全部删除。**替代做法**：把"行数记账"这类**纯逻辑**抽出来单独守（`rvtransport vscroll` + `verify_details.ps1`），绘制部分只能靠人工看 → 见手测指引 §7。
-     - **新增调试命令（合并前剥离）**：`rvtransport vscroll <车辆>`（详情窗每页行数）、`rvtransport parts <载体>`（逐节 `cargo/cap/stored/rv_capacity=…t/rv_used=…t/holds_rv=…`，用来判断"车装在哪一节、那节能装多少吨"，也就解释了为什么某节/某车型看不到满载外观）；`testrun/probe_user_crash.ps1` 可把评审存档读进来直接打印这些信息。
+     - **新增调试命令（合并前剥离）**：`rvtransport vscroll <车辆>`（详情窗每页行数）、`rvtransport parts <载体>`（逐节 `cargo/cap/stored/rv_capacity=…t/rv_used=…t/holds_rv=…`，用来判断"车装在哪一节、那节能装多少吨"，也就解释了为什么某节/某车型看不到满载外观）、`rvtransport setcurrent <车辆> <订单号> [loading]`（把某条订单设成当前订单，可选按"刚进站装载中"处理；专门用来在专用服务器上测"订单驱动"的行为）；`testrun/probe_user_crash.ps1` 可把评审存档读进来直接打印这些信息。
+  6. 🔧 **M11d：评审实测"卡车不再等待、也装不上车"的修复（等待状态被 tick 清掉）**：评审反馈——**打开稍早的存档后，卡车不再进入"等待被运载"，火车也就装不上它**。根因：`RVTransportTickWaiting()` 只承认 `current_order` 是 `OT_GOTO_STATION`，但卡车到站时 `Vehicle::BeginLoading()` 会把当前订单**转成 `OT_LOADING`（装载中订单，运输旗标仍在）**，于是**下一个 tick 就把等待状态清掉**，卡车随即按自己的调度开走 —— 火车当然找不到可装的车。修法：把 `OT_LOADING` 也算作"仍要等待"，并且当当前订单是装载中订单时**回订单列表重读那条站订单**（这样在订单窗口里取消勾选"等待被运载"也会立刻生效）。
+     - **为什么以前没抓到**：老脚本全都 `pause` 着测，且 `rvtransport sim` 是在同一条命令里"设等待 + 立刻装载"，**从没让游戏走过 tick** → 新增脚本 `verify_wait_tick.ps1`（让游戏真跑 1.2 秒再检查），它在**未修复的构建上正好失败**（`set | clear | clear`），修复后 `set | set | clear` → PASS ✓。
+     - **顺带的可发现性修复**：评审一直找不到"载运清单"。清单本身在**详情窗"信息"页的最底部**（要滚到底），现在额外在**详情窗顶部**（不用切页、不用滚动）常显一行 `载有 N 台道路载具`（复用状态栏字符串，只在载体真的装着车时出现），并把"信息页要滚到底"写进手测指引。
+  7. 🔧 **测试提速**（评审提问"回归能不能快点、能不能并行"）：实测测试存档 **1.2 秒**就加载完，而脚本原来写死等 **45 秒**、命令之间还各等 4–5 秒 —— 时间几乎全花在 `Start-Sleep` 上。现在：①`testrun/_common.ps1` 的 `Invoke-RoRoTest` 用"`save <探针>` 命令 + 轮询存档文件"判断"加载完/控制台可用"，命令间隔 1 秒（单个脚本 70–190 秒 → 十几秒）；②新增 `testrun/run_all.ps1` 并行跑全部脚本并汇总（默认 4 并行，实测 6 并行跑 6 个脚本墙钟 172 秒，瓶颈是还没改造的老脚本）；③脚本一律带 `-x` 运行（不回写配置文件，避免测试运行改掉 `build/roro-test.cfg`，这坑我踩过一次：端口实验把 `server_port` 改成了 4301）；④`-D :<端口>` 可给每个并行实例分配独立端口（实测同端口并行也能跑，只是会打一条绑定失败警告）。
 - ⏳ **待办**：联机 sync test；性能验收（500 台待运 + 20 节车单次装货扫描）；合并前剥离 `rvtransport` 调试命令；M11b/M11c 的人工复测（改命令后等待标记消失、载体详情窗"信息"页底部的载运清单、载体满载外观）。
 
 ---

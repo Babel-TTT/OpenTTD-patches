@@ -4892,6 +4892,27 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		return true;
 	}
 
+	if (StrEqualsIgnoreCase(argv[1], "setcurrent")) {
+		/* Debug helper: make one of the vehicle's orders its current order, optionally as if the
+		 * vehicle had just arrived at that station (the loading order which Vehicle::BeginLoading()
+		 * derives from it). Order-driven behaviour cannot be tested on a dedicated server otherwise,
+		 * because no vehicle can be driven around there. */
+		if (argv.size() < 4 || argv.size() > 5) return false;
+		Vehicle *v = get_veh(argv[2]);
+		if (v == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		const VehicleOrderID order_index = ParseType<VehicleOrderID>(argv[3]).value_or(INVALID_VEH_ORDER_ID);
+		if (order_index == INVALID_VEH_ORDER_ID) { IConsolePrint(CC_ERROR, "invalid order index"); return true; }
+		const Order *o = v->GetOrder(order_index);
+		if (o == nullptr) { IConsolePrint(CC_ERROR, "order {} not found (vehicle has {} orders)", order_index, v->GetNumOrders()); return true; }
+		v->current_order = *o;
+		v->cur_real_order_index = order_index;
+		if (argv.size() == 5 && StrEqualsIgnoreCase(argv[4], "loading")) v->current_order.MakeLoading(true);
+		IConsolePrint(CC_DEFAULT, "setcurrent: vehicle #{} order {} type={} station={} rvflags={} loading={}",
+				v->index.base(), order_index, (int)v->current_order.GetType(), v->current_order.IsType(OT_GOTO_STATION),
+				v->current_order.GetRVTransportFlags(), v->current_order.IsType(OT_LOADING));
+		return true;
+	}
+
 	if (StrEqualsIgnoreCase(argv[1], "parts")) {
 		/* Show every part of a carrier: what cargo it holds, how many tonnes of road vehicles it can
 		 * take and whether it currently holds any (this is what decides which part a road vehicle is
