@@ -4934,6 +4934,26 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		return true;
 	}
 
+	if (StrEqualsIgnoreCase(argv[1], "row")) {
+		/* Debug: which road vehicle does line <row> of the train details "carried" tab show? This is the
+		 * mapping the window's click handler uses, so a script can check that clicking a line opens the
+		 * right vehicle. */
+		if (argv.size() != 4) return false;
+		Vehicle *carrier = get_veh(argv[2]);
+		if (carrier == nullptr) { IConsolePrint(CC_ERROR, "vehicle not found"); return true; }
+		const int row = ParseType<int>(argv[3]).value_or(-1);
+		extern const Vehicle *GetTrainDetailsCarriedVehicleRow(VehicleID veh_id, int row);
+		const Vehicle *rv = GetTrainDetailsCarriedVehicleRow(carrier->First()->index, row);
+		if (rv == nullptr) {
+			IConsolePrint(CC_ERROR, "row: carrier #{} line {} has no road vehicle", carrier->First()->index.base(), row);
+		} else {
+			IConsolePrint(CC_DEFAULT, "row: carrier #{} line {} -> rv #{} (unit={}, cargo={}/{}, weight={}t, declared_dest={})",
+					carrier->First()->index.base(), row, rv->index.base(), rv->unitnumber, rv->cargo.StoredCount(),
+					rv->cargo_cap, rv->transported_weight, RVTransportGetDeclaredDestination(rv).base());
+		}
+		return true;
+	}
+
 	if (StrEqualsIgnoreCase(argv[1], "carried")) {
 		/* List the road vehicles a carrier holds (the same list the train details window shows). */
 		if (argv.size() != 3) return false;
@@ -5054,13 +5074,14 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		extern int GetTrainDetailsWndVScroll(VehicleID veh_id, TrainDetailsWindowTabs det_tab);
 		std::vector<const Vehicle *> carried;
 		RVTransportGetCarriedVehicles(v->First(), carried);
-		IConsolePrint(CC_DEFAULT, "vscroll: train #{} lines per tab: cargo={} info={} capacity={} totals={} perf={}, carried={}",
+		IConsolePrint(CC_DEFAULT, "vscroll: train #{} lines per tab: cargo={} info={} capacity={} totals={} perf={} carried_tab={}, carried={}",
 				v->First()->index.base(),
 				GetTrainDetailsWndVScroll(v->First()->index, TDW_TAB_CARGO),
 				GetTrainDetailsWndVScroll(v->First()->index, TDW_TAB_INFO),
 				GetTrainDetailsWndVScroll(v->First()->index, TDW_TAB_CAPACITY),
 				GetTrainDetailsWndVScroll(v->First()->index, TDW_TAB_TOTALS),
 				GetTrainDetailsWndVScroll(v->First()->index, TDW_TAB_PERF),
+				GetTrainDetailsWndVScroll(v->First()->index, TDW_TAB_CARRIED),
 				carried.size());
 		return true;
 	}

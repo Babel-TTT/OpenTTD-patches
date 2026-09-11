@@ -4568,6 +4568,8 @@ STR_VEHICLE_STATUS_BEING_TRANSPORTED                            :{LTBLUE}Being t
 STR_VEHICLE_STATUS_CARRYING_ROAD_VEHICLES                       :{LTBLUE}Carrying {COMMA} road vehicles
 STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLES                       :Carried road vehicles:
 STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLE                        :{BLACK}{VEHICLE}
+STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLE_EXTRA                  :{BLACK} ({COMMA}t)
+STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLE_NONE                   :{LTBLUE}This train is not carrying any road vehicle
 STR_VEHICLE_STATUS_BROKEN_DOWN                                  :{RED}Broken down
 STR_VEHICLE_STATUS_STOPPED                                      :{RED}Stopped
 STR_VEHICLE_STATUS_TRAIN_STOPPING_VEL                           :{RED}{VELOCITY} - Stopping

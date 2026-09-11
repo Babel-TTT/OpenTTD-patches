@@ -1676,6 +1676,8 @@ STR_VEHICLE_DETAILS_DECREASE_SERVICING_INTERVAL_TOOLTIP_PRODINT :{BLACK}将维�
 
 STR_VEHICLE_DETAIL_TAB_PERFORMANCE                              :{BLACK}性能
 STR_VEHICLE_DETAILS_TRAIN_PERFORMANCE_TOOLTIP                   :{BLACK}显示列车空载与满载性能
+STR_VEHICLE_DETAIL_TAB_CARRIED                                  :{BLACK}载运
+STR_VEHICLE_DETAILS_TRAIN_CARRIED_TOOLTIP                       :{BLACK}显示这列车载运的道路载具。点某一行可打开那辆车的窗口
 
 STR_ORDER_DROP_CARGO_TYPE_LOAD                                  :以货物类型装载
 STR_ORDER_DROP_CARGO_TYPE_UNLOAD                                :以货物类型卸载

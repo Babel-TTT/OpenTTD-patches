@@ -2957,6 +2957,10 @@ static_assert(WID_VD_DETAILS_TRAIN_VEHICLES   == WID_VD_DETAILS_CARGO_CARRIED + 
 static_assert(WID_VD_DETAILS_CAPACITY_OF_EACH == WID_VD_DETAILS_CARGO_CARRIED + TDW_TAB_CAPACITY);
 static_assert(WID_VD_DETAILS_TOTAL_CARGO      == WID_VD_DETAILS_CARGO_CARRIED + TDW_TAB_TOTALS  );
 static_assert(WID_VD_DETAILS_PERFORMANCE      == WID_VD_DETAILS_CARGO_CARRIED + TDW_TAB_PERF  );
+static_assert(WID_VD_DETAILS_CARRIED          == WID_VD_DETAILS_CARGO_CARRIED + TDW_TAB_CARRIED);
+
+/** Row of the "carried road vehicles" tab which is at this line (RoRo), or nullptr. */
+extern const Vehicle *GetTrainDetailsCarriedVehicleRow(VehicleID veh_id, int row);
 
 /** Vehicle details widgets (other than train). */
 static constexpr std::initializer_list<NWidgetPart> _nested_nontrain_vehicle_details_widgets = {
@@ -3017,6 +3021,8 @@ static constexpr std::initializer_list<NWidgetPart> _nested_train_vehicle_detail
 				SetStringTip(STR_VEHICLE_DETAIL_TAB_TOTAL_CARGO, STR_VEHICLE_DETAILS_TRAIN_TOTAL_CARGO_TOOLTIP), SetFill(1, 0), SetResize(1, 0),
 		NWidget(WWT_PUSHTXTBTN, Colours::Grey, WID_VD_DETAILS_PERFORMANCE), SetMinimalSize(80, 12),
 				SetStringTip(STR_VEHICLE_DETAIL_TAB_PERFORMANCE, STR_VEHICLE_DETAILS_TRAIN_PERFORMANCE_TOOLTIP), SetFill(1, 0), SetResize(1, 0),
+		NWidget(WWT_PUSHTXTBTN, Colours::Grey, WID_VD_DETAILS_CARRIED), SetMinimalSize(80, 12),
+				SetStringTip(STR_VEHICLE_DETAIL_TAB_CARRIED, STR_VEHICLE_DETAILS_TRAIN_CARRIED_TOOLTIP), SetFill(1, 0), SetResize(1, 0),
 		NWidget(WWT_RESIZEBOX, Colours::Grey),
 	EndContainer(),
 };
@@ -3056,6 +3062,19 @@ std::span<const StringID> GetServiceIntervalDropDownTexts()
 }
 
 /**
+ * Where the "carried road vehicles" rows of the last drawn details panel ended up: the details window
+ * needs this to open the window of the vehicle whose line was clicked (ships and aircraft have no tab
+ * bar, so their list is at the bottom of their details panel, which is not a matrix widget).
+ */
+struct CarriedListLayout {
+	VehicleID carrier = VehicleID::Invalid();
+	int first_row_y = 0;  ///< Window coordinate of the first row.
+	int line_height = 0;
+	int rows = 0;
+};
+static CarriedListLayout _carried_list_layout;
+
+/**
  * Draw the road vehicles carried by a ship or aircraft at the bottom of its details panel.
  * Trains list them in the "vehicles" tab instead, which scrolls.
  * @param carrier The carrier vehicle.
@@ -3071,11 +3090,42 @@ int DrawCarriedRoadVehicles(const Vehicle *carrier, const Rect &r, int y)
 
 	DrawString(r.left, r.right, y, STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLES, TextColour::LightBlue);
 	y += GetCharacterHeight(FontSize::Normal);
+
+	/* Remember where the rows ended up, so that the details window can open the window of the vehicle
+	 * which was clicked (see CarriedVehicleAtPoint()). */
+	_carried_list_layout.carrier = carrier->index;
+	_carried_list_layout.first_row_y = y;
+	_carried_list_layout.line_height = GetCharacterHeight(FontSize::Normal);
+	_carried_list_layout.rows = static_cast<int>(carried.size());
+
 	for (const Vehicle *rv : carried) {
 		DrawString(r.left + WidgetDimensions::scaled.framerect.left, r.right, y, GetString(STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLE, rv->index));
 		y += GetCharacterHeight(FontSize::Normal);
 	}
 	return y;
+}
+
+/**
+ * Which road vehicle of this carrier is drawn at this window position? Used by the details window to
+ * open the window of the vehicle whose line was clicked (ships and aircraft have no tabs, so their list
+ * is at the bottom of their details panel).
+ * @param carrier The carrier whose details panel was drawn last.
+ * @param pt The clicked point, in window coordinates.
+ * @return The road vehicle on that line, or nullptr.
+ */
+static const Vehicle *CarriedVehicleAtPoint(const Vehicle *carrier, const Point &pt)
+{
+	if (carrier == nullptr || _carried_list_layout.carrier != carrier->index) return nullptr;
+	if (_carried_list_layout.line_height <= 0 || _carried_list_layout.rows <= 0) return nullptr;
+	if (pt.y < _carried_list_layout.first_row_y) return nullptr;
+
+	const int row = (pt.y - _carried_list_layout.first_row_y) / _carried_list_layout.line_height;
+	if (row < 0 || row >= _carried_list_layout.rows) return nullptr;
+
+	std::vector<const Vehicle *> carried;
+	RVTransportGetCarriedVehicles(carrier, carried);
+	if (row >= static_cast<int>(carried.size())) return nullptr;
+	return carried[row];
 }
 
 /** Class for managing the vehicle details window. */
@@ -3678,16 +3728,50 @@ struct VehicleDetailsWindow : Window {
 			case WID_VD_DETAILS_CAPACITY_OF_EACH:
 			case WID_VD_DETAILS_TOTAL_CARGO:
 			case WID_VD_DETAILS_PERFORMANCE:
+			case WID_VD_DETAILS_CARRIED:
 				this->SetWidgetsLoweredState(false,
 					WID_VD_DETAILS_CARGO_CARRIED,
 					WID_VD_DETAILS_TRAIN_VEHICLES,
 					WID_VD_DETAILS_CAPACITY_OF_EACH,
 					WID_VD_DETAILS_TOTAL_CARGO,
-					WID_VD_DETAILS_PERFORMANCE);
+					WID_VD_DETAILS_PERFORMANCE,
+					WID_VD_DETAILS_CARRIED);
 
 				this->tab = (TrainDetailsWindowTabs)(widget - WID_VD_DETAILS_CARGO_CARRIED);
 				this->SetDirty();
 				break;
+
+			case WID_VD_MATRIX: {
+				/* RoRo: on the "carried road vehicles" tab a line opens the window of that vehicle. */
+				if (this->tab != TDW_TAB_CARRIED) break;
+				const NWidgetBase *matrix = this->GetWidget<NWidgetBase>(WID_VD_MATRIX);
+				if (matrix == nullptr || pt.x < matrix->pos_x || pt.x >= matrix->pos_x + (int)matrix->current_x ||
+						pt.y < matrix->pos_y || pt.y >= matrix->pos_y + (int)matrix->current_y) {
+					break;
+				}
+				const int line_height = std::max<int>(this->resize.step_height, 1);
+				const int row = this->vscroll->GetPosition() + (pt.y - matrix->pos_y) / line_height;
+				const Vehicle *rv = GetTrainDetailsCarriedVehicleRow(this->window_number, row);
+				if (rv != nullptr) {
+					ShowVehicleViewWindow(rv);
+					ScrollMainWindowTo(rv->x_pos, rv->y_pos, rv->z_pos);
+				}
+				break;
+			}
+
+			case WID_VD_MIDDLE_DETAILS: {
+				/* RoRo: ships and aircraft have no tab bar, so their carried road vehicles are listed at
+				 * the bottom of this panel; a click on such a line opens that vehicle's window. */
+				const Vehicle *v = Vehicle::Get(this->window_number);
+				if (v->type != VehicleType::Road) {
+					const Vehicle *rv = CarriedVehicleAtPoint(v, pt);
+					if (rv != nullptr) {
+						ShowVehicleViewWindow(rv);
+						ScrollMainWindowTo(rv->x_pos, rv->y_pos, rv->z_pos);
+					}
+				}
+				break;
+			}
 
 			case WID_VD_EXTRA_ACTIONS: {
 				const Vehicle *v = Vehicle::Get(this->window_number);

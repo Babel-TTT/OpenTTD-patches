@@ -4552,6 +4552,8 @@ STR_VEHICLE_STATUS_BEING_TRANSPORTED                            :{LTBLUE}正在�
 STR_VEHICLE_STATUS_CARRYING_ROAD_VEHICLES                       :{LTBLUE}载有 {COMMA} 台道路载具
 STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLES                       :载运的道路载具：
 STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLE                        :{BLACK}{VEHICLE}
+STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLE_EXTRA                  :{BLACK}（{COMMA} 吨）
+STR_VEHICLE_DETAILS_CARRIED_ROAD_VEHICLE_NONE                   :{LTBLUE}本列车没有载运道路载具
 STR_VEHICLE_STATUS_BROKEN_DOWN                                  :{RED}抛锚
 STR_VEHICLE_STATUS_STOPPED                                      :{RED}停运
 STR_VEHICLE_STATUS_TRAIN_STOPPING_VEL                           :{RED}{VELOCITY} - 正在停止

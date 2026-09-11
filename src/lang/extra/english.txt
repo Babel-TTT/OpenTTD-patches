@@ -1733,6 +1733,8 @@ STR_VEHICLE_DETAILS_DECREASE_SERVICING_INTERVAL_TOOLTIP_PRODINT :{BLACK}Decrease
 
 STR_VEHICLE_DETAIL_TAB_PERFORMANCE                              :{BLACK}Performance
 STR_VEHICLE_DETAILS_TRAIN_PERFORMANCE_TOOLTIP                   :{BLACK}Show train performance statistics when empty and fully loaded
+STR_VEHICLE_DETAIL_TAB_CARRIED                                  :{BLACK}Carried
+STR_VEHICLE_DETAILS_TRAIN_CARRIED_TOOLTIP                       :{BLACK}Show the road vehicles this train carries. Click a line to open the window of that vehicle
 
 STR_ORDER_DROP_CARGO_TYPE_LOAD                                  :Load by cargo type
 STR_ORDER_DROP_CARGO_TYPE_UNLOAD                                :Unload by cargo type
