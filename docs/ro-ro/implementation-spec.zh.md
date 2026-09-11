@@ -438,7 +438,8 @@ rvtransport selftest             # 自动收运→落地并判定 PASS/FAIL（�
      **验证**：新增 `verify_unload_match.ps1`（`3 -> 4` 的索引推进 + 错站 `detach: failed` / 正确站 `detach: ok`）→ PASS；用评审存档实测 `declared_dest=10 'Tanglewood 码头' -> unloads here: true` ✓；全量回归 **16 脚本 ALL PASS**。
   10. 🔧 **调试工具扩充**（都为定位上面这些问题而加，合并前剥离）：`rvtransport dump`（一次性打印所有卡车/载体/逐节/所载车/声明卸货站/所属订单站，并对每个载体判断"车能否卸在它当前订单的站"及原因）、`rvtransport station <站> [车]`（该站公路停靠站格与占用、能否放下）、`rvtransport setwaiting <载体> <车>`（把车置为在该载体订单站等待，不装载）、`rvtransport loadfrom <载体某节> <车>`（按"某节进站"调用装载代码）、`rvtransport setcurrent <车> <订单号> [loading]`（把某条订单设为当前订单）；`rvtransport orders` 现在打印**每条订单的目标站编号 + 站名**（游戏界面只显示名字，而两个站可以重名，这一条是这次排查的关键）；`rvtransport modify/orderflag` 支持 `unloadall` 旗标。另有通用探针 `testrun/probe_save.ps1 -SavePath <存档> -Commands …`，可直接把评审存档读进来跑任意调试命令。
 
-- ⏳ **待办**：联机 sync test；性能验收（500 台待运 + 20 节车单次装货扫描）；合并前剥离 `rvtransport` 调试命令；M11b/M11c 的人工复测（改命令后等待标记消失、载体详情窗"信息"页底部的载运清单、载体满载外观）。
+- ✅ **M11j：列车详情窗的 `载运`页 + 点击跳转（评审要求）**：`TrainDetailsWindowTabs` 增 `TDW_TAB_CARRIED`、`VehicleDetailsWidgets` 增 `WID_VD_DETAILS_CARRIED`（两者按"减法"对应，新项都放末尾并加 `static_assert`），火车详情窗多出第 6 个标签按钮（`载运` / `Carried`）。该页一车一行（编号+车名、记录重量、货物、声明卸货站），空着时写"本列车没有载运道路载具"；**点某一行 → 打开那辆车的窗口并把镜头带过去**（行→车辆映射 `GetTrainDetailsCarriedVehicleRow()`，调试命令 `rvtransport row <火车id> <行>` 打印同一映射，无需 GUI 即可验证）。**船/机没有标签栏**，其清单仍在面板底部，但**每行也可点**（`DrawCarriedRoadVehicles()` 记录行区域 + `CarriedVehicleAtPoint()` 命中判定）。行数记账已并入 `GetTrainDetailsWndVScroll()`（一车一行，空时一行"没有"），`verify_details.ps1` 用 `rvtransport vscroll` + `rvtransport row` 守住；全量回归 17 脚本 ALL PASS。视觉与点击本身需要 GUI，由评审复测。
+- ⏳ **待办**：联机 sync test；性能验收（500 台待运 + 20 节车单次装货扫描）；合并前剥离 `rvtransport` 调试命令；**M11j 的人工复测**（列车 `载运`页的外观与点击跳转、船/机面板清单的行点击）。
 
 ---
 

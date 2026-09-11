@@ -86,10 +86,9 @@ Carried road vehicles are visible from the carrier's side too:
   `stored * totalsets / capacity` rule for NewGRF sets). Default ships and aircraft have no
   loaded/unloaded variant, so nothing changes visually for them;
 * the carrier's **detail window lists** what it carries — the top of the window shows a *Carrying N
-  road vehicles* line as soon as it holds any, the train "vehicles" (information) tab ends with a
-  *Carried road vehicles:* section (scroll that tab to the bottom; its scrollbar accounts for the
-  extra lines), and ships and aircraft get the same list at the bottom of their details panel (the
-  window grows and shrinks with the number of vehicles on board);
+  road vehicles* line as soon as it holds any, trains have a **"Carried" tab** which lists one vehicle
+  per line, and **clicking a line opens the window of that vehicle** (ships and aircraft have no tab bar,
+  so their list sits at the bottom of their details panel and is clickable as well);
 * a train's consist **weighs more** while it carries road vehicles (they are added to the consist
   weight, so acceleration, running cost, bridge limits, and the "performance" tab all see them).
   `rvtransport state <train>` prints `carried=`/`total_incl_carried=`/`own=`. Ships and aircraft
