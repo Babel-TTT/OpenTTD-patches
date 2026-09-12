@@ -253,8 +253,10 @@ Work that is deliberately **not** in this branch yet:
 * **A road vehicle which is carried when its carrier is destroyed is deleted outright**, so it never
   shows a wreck of its own (the wreck disappears together with the carrier's). Walking through a real
   crash confirms that the effect matches the design, just without that intermediate picture.
-* No multiplayer sync test, no performance measurement, and the `rvtransport` debug command is
-  still present (to be stripped before merging).
+* No performance measurement, and the `rvtransport` debug command is still present (to be stripped
+  before merging). A network game is covered: `testrun/verify_mp_sync.ps1` starts a dedicated server and
+  a headless dedicated client (`-D -n host:port`), and the client's received state of a road vehicle
+  which is on board a train has to match the server's field by field, with no desync.
 
 Walked through in game (tester): waiting → loading → transport → unloading, articulated (multi-part)
 road vehicles, ship and aircraft carriers, and carrier destruction. See appendix D.3b of the

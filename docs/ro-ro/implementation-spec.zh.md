@@ -269,6 +269,24 @@
 1. **`rvtransport orderflag`/`modify` 与 GUI 的 `UNLOAD_ALL`**：`MOF_RV_TRANSPORT` 的数据白名单漏了 `ORVTF_UNLOAD_ALL`，导致设置窗口里「在此卸下全部道路载具」勾选框**点了没反应**（命令返回 `CMD_ERROR`）。修后 `rvtransport modify … unloadall` 由 `FAILED → OK`，并加进 `verify_toggle.ps1` 的断言（旧脚本用的 `orderflag` 直接写引用、绕过校验，所以一直没覆盖到）。
 2. **控制台的"同步当前订单"辅助函数漏字段**：`RVTransportDebugSyncCurrentOrder()` 没把 `max` 抄进 `current_order`，于是上限只写进订单列表、装载读不到——`verify_max_load.ps1` 第一次跑就是 `attached=true`（本应为 `false`），补上该行后通过。GUI 路径不受影响（引擎在 `ProcessOrders()` 里整体 `current_order = *order`，`extra` 是深拷贝）。
 
+### 11.2 M11f：联机（网络游戏）验证（2026-09-12）
+
+分支此前**从未做过联机测试**。新增 `testrun/verify_mp_sync.ps1`，两端都无头运行：
+
+- **服务器**：`-D :3982 -g <存档>`；
+- **客户端**：`-D -n 127.0.0.1:3982`（走 `NetworkClientConnectGame()` 的"无头客户端"，不需要窗口）。
+
+脚本先自己造出"已有道路载具在车上"的存档（`sim` + `save`），再让客户端加入，然后比对：
+
+| 检查 | 结果 |
+|---|---|
+| 客户端确实以客户端身份加入（服务器日志 `[server] Client #N … joined as`；客户端 `Connected to 127.0.0.1`） | ✅ |
+| 同一辆车 `rvtransport state` 在两端**逐字段一致**（`flags=2 tile=… hidden=true by=6 part=7 weight=10 waiting_tick=…`） | ✅ |
+| `rvtransport carried firsttrain` 两端一致（`carrier #6 holds 1 road vehicle(s)`） | ✅ |
+| 无 desync（两端日志均无 desync/checksum 相关输出） | ✅ |
+
+> 说明（**为何不用 `sim` 驱动装载**）：`rvtransport` 的修改类子命令（`sim`/`attach`/`loadfrom`/`setwaiting`）是**本地调试命令**，直接在服务端改状态、**不走命令框架**，客户端按设计看不到（实测正是如此：服务端 `flags=2`、客户端仍 `flags=1`）。因此联机检查用"加入时整盘传输"来验证本分支新增的**车辆存档字段**（`rv_transport_flags`/`transported_by`/`transported_host_part`/`transported_weight`）在网络传输后一致——这也是该特性最可能引入不同步的地方。
+
 ---
 
 ## 附录 A：实现顺序与依赖
