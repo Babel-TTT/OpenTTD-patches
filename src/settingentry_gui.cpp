@@ -1018,7 +1018,8 @@ SettingsContainer &GetSettingsTree()
 		 * feature adds can be found in one place. */
 		SettingsPage *rv_transport = main->Add(new SettingsPage(STR_CONFIG_SETTING_ROAD_VEHICLE_TRANSPORT));
 		{
-			rv_transport->Add(new SettingEntry("vehicle.rv_transport_carrier_parts"));
+			rv_transport->Add(new SettingEntry("vehicle.rv_transport_enabled"));
+	rv_transport->Add(new SettingEntry("vehicle.rv_transport_carrier_parts"));
 	rv_transport->Add(new SettingEntry("vehicle.rv_transport_unload_warn_days"));
 		}
 

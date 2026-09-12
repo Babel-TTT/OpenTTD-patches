@@ -299,6 +299,17 @@
 | 重置 | 重新进入等待（`RVTransportSetWaiting(true)`）或再次被装上时清掉告警位 → 每趟只提示一次 |
 | 回归 | `verify_unload_warn.ps1`：先把车装上并**清空该车所有订单的 RoRo 旗标**（保证不会再被卸下），阈值设 1 天后跑 60 s → `flags=6`（carried｜warned）；阈值设 0 后同样跑 60 s → `flags=2`（无告警） |
 
+### 11.4 M11h：特性总开关（规格书 §7 设置项，2026-09-12）
+
+规格书 §7 的"特性总开关"此前没有实现（只有"哪节可以装车"的三档门）。补上 `vehicle.rv_transport_enabled`（bool，默认 **开**，`SettingFlag::Patch`，`SC_EXPERT`，与其它两项同页）：
+
+| 项 | 内容 |
+|---|---|
+| 关闭时 | **不装载**（`RVTransportPartCanCarry()` 直接 false，装载循环的 LOAD 分支也整段跳过 → 关闭时该特性的每 tick 成本为零）；正在等待的车在 `RVTransportTickWaiting()` 里**结束等待**并继续自己的调度（否则会永远等一班不会来的车）；载体订单里的 `ORVTF_WAIT`（"等到装上车"）不再压住发车 |
+| 保持可用 | **卸载/放下照常**（`RVTransportDetachAtStation` 与卸载分支不受门控影响）→ 切开关不会把已经在车上的车卡死 |
+| 不改数据 | 只是运行时门控，**订单里的 RoRo 设置原样保留**，重新打开即恢复 |
+| 回归 | `verify_carrier_parts.ps1` 追加两组读数：开关关闭时 `rv_capacity=0t` 且 `loadfrom … attached=false`；重新打开后恢复 `rv_capacity=30t`（PASS 文案同步更新） |
+
 ---
 
 ## 附录 A：实现顺序与依赖

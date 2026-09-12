@@ -587,6 +587,8 @@ STR_CONFIG_SETTING_ROAD_VEHICLE_TRANSPORT                       :Road vehicle tr
 STR_CONFIG_SETTING_RV_TRANSPORT_UNLOAD_WARN_DAYS                :Road vehicle transport: warn when a carried road vehicle is not unloaded for: {STRING}
 STR_CONFIG_SETTING_RV_TRANSPORT_UNLOAD_WARN_DAYS_HELPTEXT       :Show a news message when a road vehicle has been on board its carrier for this many days without being dropped off anywhere.{}Road vehicles are only put down at a station their own schedule asks for, so a carrier which never reaches such a station (or a road vehicle whose drop-off station was removed) keeps them on board; the warning points that out.{}The warning is shown once per trip (each time the vehicle is loaded again it may warn again).{}0 turns the warning off.
 STR_CONFIG_SETTING_RV_TRANSPORT_UNLOAD_WARN_DAYS_VALUE           :{NUM} day{P "" s}
+STR_CONFIG_SETTING_RV_TRANSPORT_ENABLED                          :Road vehicle transport
+STR_CONFIG_SETTING_RV_TRANSPORT_ENABLED_HELPTEXT                 :Allow road vehicles to be loaded onto trains, ships and aircraft.{}Switching this off does not touch the orders which were set up: nothing new is loaded any more, vehicles which are waiting to be transported stop waiting (and carry on with their own schedule), and vehicles which are already on board can still be put down at their destination, so nothing gets stranded.{}This is the master switch; which carrier parts may take a vehicle is a separate setting.
 
 STR_CONFIG_SETTING_SLOW_ROAD_VEHICLES_IN_CURVES                 :Road vehicles slow down in curves: {STRING2}
 STR_CONFIG_SETTING_SLOW_ROAD_VEHICLES_IN_CURVES_HELPTEXT        :When enabled, road vehicles slow down in curves. (Only with realistic acceleration)

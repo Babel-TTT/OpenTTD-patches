@@ -36,6 +36,13 @@ $cmds = @(
     'rvtransport parts firsttrain',
     'rvtransport setwaiting firsttrain firstrv',
     'rvtransport loadfrom 7 firstrv',                  # refused: Wood is piece goods
+    'setting vehicle.rv_transport_enabled false',       # the master switch off
+    'rvtransport parts firsttrain',
+    'rvtransport setwaiting firsttrain firstrv',
+    'rvtransport loadfrom 7 firstrv',                  # refused: nothing is loaded at all
+    'setting vehicle.rv_transport_enabled true',        # and back on (with carrier parts = 0 from above)
+    'setting vehicle.rv_transport_carrier_parts 0',
+    'rvtransport parts firsttrain',
     'quit'
 )
 $txt = Invoke-RoRoTest -Tag 'carrierparts' -Exe $exe -Config $cfg -Savegame $sav -Commands $cmds -CarrierParts -1 -LogName 'log_carrier_parts.txt'
@@ -57,10 +64,12 @@ foreach ($l in ($txt -split "`r?`n")) {
 }
 Write-Output ("default value 2 = {0} ; rv_capacity readings: {1}t ; attach verdicts: {2}" -f `
     $defaultOk, ($caps -join 't / '), ($attaches -join ', '))
-$ok = $defaultOk -and ($caps.Count -ge 3) -and ($caps[0] -gt 0) -and ($caps[1] -eq 0) -and ($caps[2] -eq 0) -and
-      ($attaches.Count -ge 3) -and ($attaches[0] -eq 'true') -and ($attaches[1] -eq 'false') -and ($attaches[2] -eq 'false')
+
+$positionsOk = ($caps.Count -ge 5) -and ($caps[0] -gt 0) -and ($caps[1] -eq 0) -and ($caps[2] -eq 0) -and ($caps[3] -eq 0) -and ($caps[4] -gt 0)
+$verdictsOk = ($attaches.Count -ge 4) -and ($attaches[0] -eq 'true') -and ($attaches[1] -eq 'false') -and ($attaches[2] -eq 'false') -and ($attaches[3] -eq 'false')
+$ok = $defaultOk -and $positionsOk -and $verdictsOk
 if ($ok) {
-    Write-Output 'RESULT: PASS (default is value 2; value 0 allows an ordinary piece-goods wagon, values 1 and 2 refuse it)'
+    Write-Output 'RESULT: PASS (default is value 2; value 0 allows an ordinary piece-goods wagon, values 1 and 2 refuse it, and the master switch off refuses everything)'
 } else {
     Write-Output 'RESULT: CHECK (see the readings above)'
 }

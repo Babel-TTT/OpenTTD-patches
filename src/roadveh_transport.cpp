@@ -54,6 +54,9 @@ static constexpr CargoLabel RV_TRANSPORT_VEHICLES_CARGO_LABEL{'VEHI'};
 bool RVTransportPartCanCarry(const Vehicle *part)
 {
 	if (part == nullptr) return false;
+	/* Master switch (vehicle.rv_transport_enabled): with it off nothing new is loaded, while unloading
+	 * keeps working so that no vehicle stays on board forever. */
+	if (!_settings_game.vehicle.rv_transport_enabled) return false;
 	if (part->cargo_cap == 0) return false;
 	if (!IsValidCargoType(part->cargo_type)) return false;
 
@@ -218,6 +221,13 @@ void RVTransportTickWaiting(Vehicle *rv)
 {
 	if (rv == nullptr || rv->type != VehicleType::Road) return;
 	if ((rv->rv_transport_flags & RVTF_WAITING) == 0) return;
+
+	/* With the master switch off a vehicle must not wait for a carrier which will never take it: it
+	 * carries on with its own schedule instead. */
+	if (!_settings_game.vehicle.rv_transport_enabled) {
+		RVTransportSetWaiting(rv, false);
+		return;
+	}
 
 	/* The vehicle keeps waiting while the order it is executing asks for it. While it stands at the
 	 * station its current order is the *loading* order which Vehicle::BeginLoading() derived from the

@@ -2035,7 +2035,7 @@ static void LoadUnloadVehicle(Vehicle *front)
 		if ((rv_order_flags & ORVTF_UNLOAD) != 0) {
 			RVTransportDetachAtStation(carrier, st);
 		}
-		if ((rv_order_flags & ORVTF_LOAD) != 0) {
+		if ((rv_order_flags & ORVTF_LOAD) != 0 && _settings_game.vehicle.rv_transport_enabled) {
 			for (int i = 0; i < 8; i++) {
 				Vehicle *waiting = RVTransportFindWaitingAtStation(st, carrier); // applies the order's selection criteria
 				if (waiting == nullptr) break;
@@ -2410,7 +2410,7 @@ static void LoadUnloadVehicle(Vehicle *front)
 		 * somebody to pick up at this station, and while nothing has been loaded yet. (As above, the
 		 * carried road vehicles belong to the front vehicle of a multi-part carrier.) */
 		Vehicle *rv_carrier = front->First();
-		if (const uint8_t rv_order = rv_carrier->current_order.GetRVTransportFlags(); (rv_order & ORVTF_WAIT) != 0 && (rv_order & ORVTF_LOAD) != 0) {
+		if (const uint8_t rv_order = rv_carrier->current_order.GetRVTransportFlags(); _settings_game.vehicle.rv_transport_enabled && (rv_order & ORVTF_WAIT) != 0 && (rv_order & ORVTF_LOAD) != 0) {
 			if (RVTransportFindWaitingAtStation(st, rv_carrier) != nullptr || RVTransportCountOnCarrier(rv_carrier) == 0) {
 				finished_loading = false;
 			}
@@ -2419,7 +2419,7 @@ static void LoadUnloadVehicle(Vehicle *front)
 		/* RoRo: the same waiting order keeps the carrier waiting until the road vehicles which want to
 		 * get off here have actually got off; the station may have had no free road stop tile when it
 		 * arrived. Without this, the carrier would drive on and try again on its next visit. */
-		if (const uint8_t rv_order = rv_carrier->current_order.GetRVTransportFlags(); (rv_order & ORVTF_WAIT) != 0 && (rv_order & ORVTF_UNLOAD) != 0) {
+		if (const uint8_t rv_order = rv_carrier->current_order.GetRVTransportFlags(); _settings_game.vehicle.rv_transport_enabled && (rv_order & ORVTF_WAIT) != 0 && (rv_order & ORVTF_UNLOAD) != 0) {
 			if (RVTransportCountWantingUnloadHere(rv_carrier, st) > 0) {
 				finished_loading = false;
 			}
