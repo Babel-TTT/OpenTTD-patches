@@ -442,6 +442,84 @@ void Window::UpdateQueryStringSize()
 }
 
 /**
+ * TEMPORARY DIAGNOSTIC (see ReportOverwrittenFocusedWindow): the focus changes which happened last,
+ * so that the report shows at which point the focus was given to a window which then disappeared.
+ */
+struct FocusHistoryEntry {
+	const Window *window;
+	WindowClass cls;
+	WindowNumber number;
+};
+static FocusHistoryEntry _focus_history[16];
+static uint _focus_history_pos = 0;
+
+static void RecordFocusChange(const Window *w)
+{
+	FocusHistoryEntry &e = _focus_history[_focus_history_pos % lengthof(_focus_history)];
+	_focus_history_pos++;
+	e.window = w;
+	/* Read the identity from the object itself; it is only used for the report, so garbage is fine. */
+	e.cls = (w != nullptr) ? w->window_class : WindowClass::Invalid;
+	e.number = (w != nullptr) ? w->window_number : WindowNumber{0};
+}
+
+/**
+ * TEMPORARY DIAGNOSTIC (road vehicle transport branch, to be removed once the crash is fixed).
+ *
+ * A crash report (2026-09-12 04:22 UTC) shows that the memory of the window #_focused_window points
+ * at can be overwritten: its vtable pointer had become garbage (0x0000000400000000), so the virtual
+ * call in SetFocusedWindow() faulted while the player clicked a vehicle in the viewport. Report what
+ * is known about that window, because only the first machine word is damaged and the identity of the
+ * window (class and number) is what points at the code which wrote there.
+ *
+ * @param corrupt The focused window whose memory looks overwritten.
+ * @param new_focus The window which was about to get the focus.
+ */
+static void ReportOverwrittenFocusedWindow(const Window *corrupt, const Window *new_focus)
+{
+	FILE *f = fopen((_personal_dir + "rvtransport-window-corruption.txt").c_str(), "a");
+	if (f == nullptr) return;
+
+	fprintf(f, "overwritten focused window: %p, its first word is %p\n",
+			(const void *)corrupt, *reinterpret_cast<const void *const *>(corrupt));
+	fprintf(f, "  class %d number %u at %d,%d size %ux%u, nested_focus %p\n",
+			(int)corrupt->window_class, (unsigned)corrupt->window_number, corrupt->left, corrupt->top,
+			corrupt->width, corrupt->height, (const void *)corrupt->nested_focus);
+	fprintf(f, "  window getting the focus instead: class %d number %u\n",
+			(int)new_focus->window_class, (unsigned)new_focus->window_number);
+	fprintf(f, "  windows at that moment (front to back):\n");
+	for (const Window *w : Window::IterateFromFront()) {
+		fprintf(f, "  %s class %d number %u at %d,%d, first word %p\n", (w == corrupt) ? "->" : "  ",
+				(int)w->window_class, (unsigned)w->window_number, w->left, w->top,
+				*reinterpret_cast<const void *const *>(w));
+	}
+	fprintf(f, "  last focus changes (oldest first, at most %u):\n", (unsigned)lengthof(_focus_history));
+	for (uint i = 0; i < lengthof(_focus_history); i++) {
+		const FocusHistoryEntry &e = _focus_history[(_focus_history_pos + i) % lengthof(_focus_history)];
+		if (e.window == nullptr && e.cls == WindowClass::Invalid && e.number == 0) continue;
+		fprintf(f, "    %p class %d number %u%s\n", (const void *)e.window, (int)e.cls, (unsigned)e.number,
+				(e.window == corrupt) ? "   <== the overwritten window" : "");
+	}
+	fclose(f);
+
+	IConsolePrint(CC_ERROR, "Internal error: the focused window was overwritten (see rvtransport-window-corruption.txt)");
+}
+
+/**
+ * TEMPORARY DIAGNOSTIC (see ReportOverwrittenFocusedWindow): does this pointer still look like a
+ * window of this program? A window's vtable pointer points into this executable, which is what the
+ * overwritten window lost.
+ * @param w The pointer to check.
+ * @return True if the memory at \a w still begins with a plausible vtable pointer.
+ */
+static bool IsWindowPointerIntact(const Window *w)
+{
+	const uintptr_t vtable = *reinterpret_cast<const uintptr_t *>(w);
+	const uintptr_t module = reinterpret_cast<uintptr_t>(&_focused_window);
+	return vtable > module - 0x40000000 && vtable < module + 0x40000000;
+}
+
+/**
  * Set the window that has the focus
  * @param w The window to set the focus on
  */
@@ -450,6 +528,12 @@ void SetFocusedWindow(Window *w)
 	if (_focused_window == w) return;
 
 	if (w != nullptr && w->window_class == WindowClass::Invalid) return;
+
+	/* TEMPORARY DIAGNOSTIC: report an overwritten focused window before it is used (see above). */
+	if (_focused_window != nullptr && !IsWindowPointerIntact(_focused_window)) {
+		ReportOverwrittenFocusedWindow(_focused_window, w);
+	}
+	RecordFocusChange(w);
 
 	/* Invalidate focused widget */
 	if (_focused_window != nullptr) {
