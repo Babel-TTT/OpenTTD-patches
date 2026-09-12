@@ -2068,7 +2068,7 @@ CommandCost CmdModifyOrder(DoCommandFlags flags, VehicleID veh, VehicleOrderID s
 		case MOF_RV_TRANSPORT:
 			/* Road vehicle transport (RoRo): only meaningful for station orders, value = load/unload/match flags. */
 			if (!order->IsType(OT_GOTO_STATION)) return CommandCost(STR_ERROR_RV_TRANSPORT_STATION_ORDER_ONLY);
-			if ((data & ~(ORVTF_LOAD | ORVTF_UNLOAD | ORVTF_MATCH_DEST | ORVTF_WAIT)) != 0) return CMD_ERROR;
+			if ((data & ~(ORVTF_LOAD | ORVTF_UNLOAD | ORVTF_MATCH_DEST | ORVTF_WAIT | ORVTF_UNLOAD_ALL)) != 0) return CMD_ERROR;
 			break;
 
 		case MOF_RV_LOAD_STATE:

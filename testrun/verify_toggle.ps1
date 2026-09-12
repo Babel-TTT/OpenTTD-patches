@@ -55,6 +55,11 @@ $cmds = @(
     'rvtransport toggle firstrv 0 load',
     'rvtransport setflags firsttrain 0 0',
     'rvtransport setflags firstrv 0 0',
+    # The "unload everything here" flag has to be accepted by the command which the settings window
+    # uses (MOF_RV_TRANSPORT): its data whitelist forgot ORVTF_UNLOAD_ALL once, which made that check
+    # box do nothing at all. `setflags` above writes the raw value, `modify` goes through the command,
+    # so this is the case which catches it.
+    'rvtransport modify firsttrain 0 unloadall',
     'quit'
 )
 foreach ($c in $cmds) { try { $p.StandardInput.WriteLine($c); $p.StandardInput.Flush() } catch {}; Start-Sleep -Seconds 3 }
@@ -67,7 +72,7 @@ try { $txt += $e.Result } catch {}
 [System.IO.File]::WriteAllText((Join-Path $tr 'log_toggle.txt'), $txt, (New-Object System.Text.UTF8Encoding($false)))
 
 $results = @()
-$results += ($txt -split "`r?`n") | Where-Object { $_ -match 'toggle:|setflags:|order \[' }
+$results += ($txt -split "`r?`n") | Where-Object { $_ -match 'toggle:|setflags:|modify:|order \[' }
 $results | Select-Object -First 40 | ForEach-Object { Write-Output $_ }
 
 # Expected flag transitions, in order of appearance (vehicle ids are ignored on purpose).
@@ -79,10 +84,16 @@ foreach ($line in ($txt -split "`r?`n")) {
 $expected = @('0 -> 0', '0 -> 5', '5 -> 1', '1 -> 9', '9 -> 1', '1 -> 0', '0 -> 2', '0 -> 4', '4 -> 1', '1 -> 0')
 
 if ($txt -match 'Assertion|crash encountered|Desync') { Write-Output 'RESULT: FAIL (crash/assertion)'; exit 1 }
-if ($actual.Count -ge $expected.Count -and (Compare-Object $expected ($actual | Select-Object -First $expected.Count) -SyncWindow 0).Count -eq 0) {
+
+# The "unload everything here" flag must be accepted by the command the settings window uses.
+$unloadAllAccepted = ($txt -match 'modify: OK \([^)]*flags -> 16\)')
+Write-Output ("unload-all flag accepted by the order command: {0}" -f $unloadAllAccepted)
+
+if ($unloadAllAccepted -and $actual.Count -ge $expected.Count -and (Compare-Object $expected ($actual | Select-Object -First $expected.Count) -SyncWindow 0).Count -eq 0) {
     Write-Output 'RESULT: PASS (all flag toggling rules behave as expected)'
 } else {
     Write-Output 'RESULT: CHECK (flag transitions differ)'
     Write-Output ("  expected: " + ($expected -join ', '))
     Write-Output ("  actual:   " + ($actual -join ', '))
 }
+
