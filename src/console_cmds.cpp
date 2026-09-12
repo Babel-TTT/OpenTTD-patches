@@ -4446,6 +4446,15 @@ static bool ConDumpInfo(std::span<std::string_view> argv)
 	return false;
 }
 
+/*
+ * Road vehicle transport (RoRo): the 'rvtransport' console command is a debug and self-test tool
+ * used by the regression scripts in testrun\, not something a player needs. It is only compiled in
+ * when the CMake option RORO_DEBUG_COMMANDS is enabled (off by default), so that a playtest build
+ * has no such command at all. Everything it needs - including the debug helpers of
+ * roadveh_transport.h - lives behind the same guard.
+ */
+#ifdef RORO_DEBUG_COMMANDS
+
 /**
  * Debug and self-test command for the road vehicle transport (RoRo) feature.
  */
@@ -5182,6 +5191,8 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 	return false;
 }
 
+#endif /* RORO_DEBUG_COMMANDS */
+
 /** Console command registration. */
 void IConsoleStdLibRegister()
 {
@@ -5236,7 +5247,9 @@ void IConsoleStdLibRegister()
 	IConsole::CmdRegister("gamelog",                 ConGamelogPrint);
 	IConsole::CmdRegister("rescan_newgrf",           ConRescanNewGRF);
 	IConsole::CmdRegister("list_dirs",               ConListDirs);
+#ifdef RORO_DEBUG_COMMANDS
 	IConsole::CmdRegister("rvtransport",             ConRVTransport);
+#endif /* RORO_DEBUG_COMMANDS */
 
 	IConsole::AliasRegister("dir",                   "ls");
 	IConsole::AliasRegister("del",                   "rm %+");

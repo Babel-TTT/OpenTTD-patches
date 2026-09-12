@@ -178,6 +178,7 @@ bool RVTransportPartHoldsRoadVehicles(const Vehicle *part);
  */
 uint16_t RVTransportExtraCargoAmount(const Vehicle *part);
 
+#ifdef RORO_DEBUG_COMMANDS
 /** Debug (RoRo): print one station's road stops and whether this road vehicle could be put down. */
 void RVTransportDebugStation(const Vehicle *rv, const Station *st);
 
@@ -189,6 +190,7 @@ void RVTransportDebugDump();
  * (It must not be, once it has been carried away from that station.)
  */
 bool RVTransportDebugStationLists(const Vehicle *v);
+#endif /* RORO_DEBUG_COMMANDS */
 
 /**
  * Vehicle whose position represents this vehicle on the map: a carried road vehicle is where its

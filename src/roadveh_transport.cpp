@@ -585,6 +585,9 @@ bool FindFreeRoadStopTile(const Station *st, Vehicle *rv, TileIndex &out_tile, D
 	return false;
 }
 
+/* Debug helpers: only compiled in for a test build (RORO_DEBUG_COMMANDS), see console_cmds.cpp. */
+#ifdef RORO_DEBUG_COMMANDS
+
 /**
  * Debug (RoRo): print one station's road stops and whether the given road vehicle could be put down
  * there, using exactly the lookup the unload transaction uses.
@@ -714,6 +717,8 @@ bool RVTransportDebugStationLists(const Vehicle *v)
 	}
 	return false;
 }
+
+#endif /* RORO_DEBUG_COMMANDS */
 
 /**
  * Unload road vehicles carried by this carrier at the given station.
