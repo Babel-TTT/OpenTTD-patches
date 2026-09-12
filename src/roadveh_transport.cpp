@@ -179,12 +179,14 @@ bool RVTransportPartHoldsRoadVehicles(const Vehicle *part)
  * Cargo units a carrier part should report on top of what it really carries, so that NewGRF sets
  * which derive their sprites from the cargo amount (variables 0x3C/0x3D) also show the "loaded"
  * appearance while the part carries road vehicles: the part is reported as full.
+ * Master switch off: returns 0 without scanning the vehicle pool (0x3C/0x3D are read on the sprite path).
  * @param part The carrier part (a road vehicle is never a carrier).
  * @return The number of units needed to fill the part, or 0 when it holds no road vehicles.
  */
 uint16_t RVTransportExtraCargoAmount(const Vehicle *part)
 {
 	if (part == nullptr || part->type == VehicleType::Road) return 0;
+	if (!_settings_game.vehicle.rv_transport_enabled) return 0;
 	if (!RVTransportPartHoldsRoadVehicles(part)) return 0;
 	const int stored = static_cast<int>(part->cargo.StoredCount());
 	const int capacity = static_cast<int>(part->cargo_cap);

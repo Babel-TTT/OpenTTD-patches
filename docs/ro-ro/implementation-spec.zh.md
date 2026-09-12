@@ -308,7 +308,8 @@
 | 关闭时 | **不装载**（`RVTransportPartCanCarry()` 直接 false，装载循环的 LOAD 分支也整段跳过 → 关闭时该特性的每 tick 成本为零）；正在等待的车在 `RVTransportTickWaiting()` 里**结束等待**并继续自己的调度（否则会永远等一班不会来的车）；载体订单里的 `ORVTF_WAIT`（"等到装上车"）不再压住发车 |
 | 保持可用 | **卸载/放下照常**（`RVTransportDetachAtStation` 与卸载分支不受门控影响）→ 切开关不会把已经在车上的车卡死 |
 | 不改数据 | 只是运行时门控，**订单里的 RoRo 设置原样保留**，重新打开即恢复 |
-| 回归 | `verify_carrier_parts.ps1` 追加两组读数：开关关闭时 `rv_capacity=0t` 且 `loadfrom … attached=false`；重新打开后恢复 `rv_capacity=30t`（PASS 文案同步更新） |
+| 绘制路径 | 关闭时连**精灵/货物量查询**也跳过（`train_cmd.cpp` 的"满载外观"、`newgrf_engine.cpp` 的变量 0x3C/0x3D 与 `RVTransportExtraCargoAmount()`）——这两处会扫全车辆池，而它们在精灵路径上；状态类查询（载运清单/`RVTransportCountOnCarrier`）**不挂门控**，保证 UI 始终显示真实情况 |
+| 回归 | `verify_carrier_parts.ps1` 追加两组读数：开关关闭时 `rv_capacity=0t` 且 `loadfrom … attached=false`；重新打开后恢复 `rv_capacity=30t`（PASS 文案同步更新）。全量 22 支全绿 |
 
 ---
 

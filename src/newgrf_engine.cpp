@@ -1219,8 +1219,9 @@ static uint32_t VehicleGetVariable(Vehicle *v, const VehicleScopeResolver *objec
 	uint capacity = v->cargo_cap;
 
 	/* RoRo: a carrier part which holds road vehicles is drawn with its "loaded" sprite set.
-	 * (Road vehicles are never carriers, so they skip the lookup.) */
-	if (v->type != VehicleType::Road && RVTransportPartHoldsRoadVehicles(v)) stored = std::max<uint>(stored, capacity);
+	 * (Road vehicles are never carriers, so they skip the lookup. Only while the master switch
+	 * is on: the vehicle pool scan must not run on the sprite path when the feature is off.) */
+	if (v->type != VehicleType::Road && _settings_game.vehicle.rv_transport_enabled && RVTransportPartHoldsRoadVehicles(v)) stored = std::max<uint>(stored, capacity);
 	if (v->type == VehicleType::Ship) {
 		for (const Vehicle *u = v->Next(); u != nullptr; u = u->Next()) {
 			stored += u->cargo.StoredCount();
