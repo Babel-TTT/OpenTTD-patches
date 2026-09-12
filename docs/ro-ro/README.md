@@ -253,8 +253,16 @@ Work that is deliberately **not** in this branch yet:
 * **A road vehicle which is carried when its carrier is destroyed is deleted outright**, so it never
   shows a wreck of its own (the wreck disappears together with the carrier's). Walking through a real
   crash confirms that the effect matches the design, just without that intermediate picture.
-* No performance measurement, and the `rvtransport` debug command is still present (to be stripped
-  before merging). A network game is covered: `testrun/verify_mp_sync.ps1` starts a dedicated server and
+* Measured on a real 21 MB savegame (a copy of the tester's, 76 vehicles, day length factor forced to
+  1): the achieved game rate is 0.32 game days/s with the feature on and 0.30 with the master switch
+  off, i.e. the difference is inside the run-to-run variation - the feature has no measurable overhead
+  on that savegame. The measurement is `testrun/measure_perf_run.ps1` (run it with `-Switch on` and
+  `-Switch off`): it starts a dedicated server, joins it with a headless dedicated client (a savegame
+  can carry a pause mode which `unpause` does not clear) and reports the rate. The scale the tester
+  asked for (500 waiting road vehicles, 20-car train) is still unmeasured: creating that many vehicles
+  needs tooling the game does not have.
+* The `rvtransport` debug command is still present (to be stripped before merging). A network game is
+  covered: `testrun/verify_mp_sync.ps1` starts a dedicated server and
   a headless dedicated client (`-D -n host:port`), and the client's received state of a road vehicle
   which is on board a train has to match the server's field by field, with no desync.
 
