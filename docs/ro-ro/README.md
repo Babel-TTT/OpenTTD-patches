@@ -261,6 +261,15 @@ Work that is deliberately **not** in this branch yet:
   can carry a pause mode which `unpause` does not clear) and reports the rate. The scale the tester
   asked for (500 waiting road vehicles, 20-car train) is still unmeasured: creating that many vehicles
   needs tooling the game does not have.
+* Full-load measurement (the scale the reviewer asked for): a scenario savegame with **511 vehicles -
+  500 of them road vehicles waiting to be transported at one station**, whose carrier's order loads
+  road vehicles, was measured with the same script. Both runs advanced the game clock *identically*
+  (1950-10-10 → 1950-12-25 → 1951-03-10 → 1951-05-25), i.e. **0.5067 / 0.5000 / 0.5067 game days per
+  second with the feature on and exactly the same with it off** - the nominal rate is 0.5, so the
+  server keeps up completely and the overhead is below the measurement's resolution (±1 day per
+  interval = ±0.7%). The 500 waiting vehicles were created with a temporary debug subcommand which was
+  removed again (the measurement is reproducible from this description; `src/console_cmds.cpp` has no
+  trace of it).
 * The `rvtransport` debug command is still present (to be stripped before merging). A network game is
   covered: `testrun/verify_mp_sync.ps1` starts a dedicated server and
   a headless dedicated client (`-D -n host:port`), and the client's received state of a road vehicle
