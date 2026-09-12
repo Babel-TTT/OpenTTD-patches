@@ -1335,7 +1335,9 @@ static void RunVehicleDayProc()
 		v = Vehicle::Get(i);
 		if (v == nullptr) continue;
 
-		/* RoRo: a carried road vehicle is frozen: no ageing, depreciation or running costs. */
+		/* RoRo: a carried road vehicle is frozen (no ageing, depreciation or running costs), but it may
+		 * have been on board for so long that the player should be told about it. */
+		RVTransportCheckCarriedTooLong(v);
 		if ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) != 0) continue;
 
 		/* Call the 32-day callback if needed */

@@ -41,6 +41,7 @@ $all = @(
     'verify_filter.ps1',
     'verify_max_load.ps1',
     'verify_mp_sync.ps1',
+    'verify_unload_warn.ps1',
     'verify_slot.ps1',
     'verify_release.ps1',
     'verify_destroy.ps1'

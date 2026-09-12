@@ -831,6 +831,7 @@ struct VehicleSettings {
 	bool     wagon_speed_limits;               ///< enable wagon speed limits
 	bool     train_speed_adaptation;           ///< Faster trains slow down when behind slower trains
 	uint8_t  rv_transport_carrier_parts;       ///< Carrying road vehicles (RoRo): which carrier parts may take them (RVTransportCarrierParts)
+uint16_t rv_transport_unload_warn_days;    ///< Carrying road vehicles (RoRo): warn when a carried road vehicle was not unloaded for this many days (0 = no warning)
 	bool     slow_road_vehicles_in_curves;     ///< Road vehicles slow down in curves.
 	bool     disable_elrails;                  ///< when true, the elrails are disabled
 	UnitID   max_trains;                       ///< max trains in game per company

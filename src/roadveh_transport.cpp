@@ -22,6 +22,7 @@
 #include "direction_func.h"
 #include "direction_type.h"
 #include "map_func.h"
+#include "news_func.h"
 #include "order_base.h"
 #include "road_map.h"
 #include "roadstop_base.h"
@@ -196,6 +197,7 @@ void RVTransportSetWaiting(Vehicle *rv, bool waiting)
 	if (waiting) {
 		rv->rv_transport_flags |= RVTF_WAITING;
 		rv->transport_wait_tick = static_cast<uint32_t>(_tick_counter);
+		rv->rv_transport_flags &= ~RVTF_UNLOAD_WARNED;   // a new trip, so the warning may be shown again
 		rv->vehstatus.Set(VehState::Stopped);
 		rv->cur_speed = 0;
 	} else {
@@ -229,6 +231,35 @@ void RVTransportTickWaiting(Vehicle *rv)
 	if ((order->IsType(OT_GOTO_STATION) || order->IsType(OT_LOADING)) && (order->GetRVTransportFlags() & ORVTF_LOAD) != 0) return;
 
 	RVTransportSetWaiting(rv, false);
+}
+
+/**
+ * Warn once per trip when a carried road vehicle has been on board for longer than the configured
+ * number of days (vehicle.rv_transport_unload_warn_days, 0 = no warning).
+ *
+ * Road vehicles are only put down at a station their own schedule asks for, so a carrier which never
+ * reaches such a station (or a vehicle whose drop-off station was removed) keeps them on board
+ * indefinitely. Carriers are not "stuck" in any engine sense in that case, so this is what tells the
+ * player about it. The warning repeats after the vehicle was loaded again (the flag is cleared when a
+ * trip starts).
+ * @param v The carried road vehicle.
+ */
+void RVTransportCheckCarriedTooLong(Vehicle *v)
+{
+	if (v == nullptr || v->type != VehicleType::Road || !v->IsFrontEngine()) return;
+	if ((v->rv_transport_flags & Vehicle::RV_TRANSPORT_CARRIED) == 0) return;
+	if ((v->rv_transport_flags & RVTF_UNLOAD_WARNED) != 0) return;
+
+	const uint16_t warn_days = _settings_game.vehicle.rv_transport_unload_warn_days;
+	if (warn_days == 0 || v->transport_wait_tick == 0) return;
+
+	/* The same day length the "minimum waiting time" criterion uses. */
+	const uint32_t carried_ticks = _tick_counter - v->transport_wait_tick;
+	if (carried_ticks < static_cast<uint32_t>(warn_days) * DAY_TICKS) return;
+
+	v->rv_transport_flags |= RVTF_UNLOAD_WARNED;
+	AddNewsItem(GetEncodedString(STR_NEWS_RV_TRANSPORT_UNLOAD_OVERDUE, v->index, carried_ticks / DAY_TICKS),
+			NewsType::Advice, NewsStyle::Small, {NewsFlag::InColour, NewsFlag::VehicleParam0}, v->index);
 }
 
 /**
@@ -468,6 +499,12 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 	/* The road vehicle has done its "wait to be transported" order: move it on to its next one, which
 	 * is where it wants to get off. */
 	RVTransportAdvanceCarriedVehicleOrder(rv);
+
+	/* Remember when this trip started: the "carried for too long" warning counts from here (the field
+	 * is otherwise only read while the vehicle is *waiting*, where RVTransportSetWaiting() sets it
+	 * again), and a new trip may warn again. */
+	rv->transport_wait_tick = static_cast<uint32_t>(_tick_counter);
+	rv->rv_transport_flags &= ~RVTF_UNLOAD_WARNED;
 
 	carrier->MarkDirty();              // the carrier is heavier now and the part looks loaded
 	RVTransportRefreshCarrier(carrier, part);

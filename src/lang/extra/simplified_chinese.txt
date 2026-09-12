@@ -539,6 +539,9 @@ STR_CONFIG_SETTING_RV_TRANSPORT_CARRIER_PARTS_ANY               :任何具备载
 STR_CONFIG_SETTING_RV_TRANSPORT_CARRIER_PARTS_OVERSIZED         :仅限装载“超大件”货物的节
 STR_CONFIG_SETTING_RV_TRANSPORT_CARRIER_PARTS_BULK_OVERSIZED_VEHI:散货、“超大件”或“运载工具”货物
 STR_CONFIG_SETTING_ROAD_VEHICLE_TRANSPORT                       :道路载具运载
+STR_CONFIG_SETTING_RV_TRANSPORT_UNLOAD_WARN_DAYS                :道路载具运载：被运载的道路载具超过多久未卸下时告警：{STRING}
+STR_CONFIG_SETTING_RV_TRANSPORT_UNLOAD_WARN_DAYS_HELPTEXT       :当一辆道路载具在载体上待满这么多天仍未在任何车站被放下时，发一条新闻提示。{}道路载具只会在**它自己的调度**要求"在此被卸下"的车站被放下，所以永远到不了这种车站的载体（或目的站被拆除的车）会把车一直带在身上——这条告警就是用来提示这种情况的。{}每趟只告警一次（下次被装上时可以再告警）。{}设为 0 表示不告警。
+STR_CONFIG_SETTING_RV_TRANSPORT_UNLOAD_WARN_DAYS_VALUE           :{NUM} 天
 
 STR_CONFIG_SETTING_SLOW_ROAD_VEHICLES_IN_CURVES                 :道路车辆在转弯处减速：{STRING}
 STR_CONFIG_SETTING_SLOW_ROAD_VEHICLES_IN_CURVES_HELPTEXT        :当开启后，道路车辆将在转弯处减速（仅当真实加速开启时启用）

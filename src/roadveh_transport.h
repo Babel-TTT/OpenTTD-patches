@@ -20,6 +20,7 @@ struct Station;
 /** Bits stored in Vehicle::rv_transport_flags. */
 static const uint8_t RVTF_WAITING     = 1 << 0; ///< Road vehicle waits at a station to be loaded onto a carrier.
 static const uint8_t RVTF_TRANSPORTED = 1 << 1; ///< Road vehicle is currently carried by another vehicle (off the road network).
+static const uint8_t RVTF_UNLOAD_WARNED = 1 << 2; ///< The "carried for too long" warning was already shown for this trip.
 
 /** Bits stored in OrderExtraInfo::rv_transport_flags. */
 static const uint8_t ORVTF_LOAD   = 1 << 0; ///< This station order loads road vehicles onto the carrier.
@@ -97,6 +98,14 @@ void RVTransportSetWaiting(Vehicle *rv, bool waiting);
  * "go to depot" order would never be carried out because the vehicle stays stopped.
  */
 void RVTransportTickWaiting(Vehicle *rv);
+
+/**
+ * Warn once when a road vehicle has been carried for longer than the configured number of days
+ * (vehicle.rv_transport_unload_warn_days, 0 = no warning). Called from the daily vehicle loop for
+ * carried vehicles, which are otherwise skipped there.
+ * @param v The carried road vehicle.
+ */
+void RVTransportCheckCarriedTooLong(Vehicle *v);
 
 /**
  * Toggle one road vehicle transport flag of a station order, keeping the combination meaningful:

@@ -584,6 +584,9 @@ STR_CONFIG_SETTING_RV_TRANSPORT_CARRIER_PARTS_ANY               :any part with c
 STR_CONFIG_SETTING_RV_TRANSPORT_CARRIER_PARTS_OVERSIZED         :only parts carrying 'oversized' cargo
 STR_CONFIG_SETTING_RV_TRANSPORT_CARRIER_PARTS_BULK_OVERSIZED_VEHI:bulk, 'oversized' or 'vehicles' cargo
 STR_CONFIG_SETTING_ROAD_VEHICLE_TRANSPORT                       :Road vehicle transport
+STR_CONFIG_SETTING_RV_TRANSPORT_UNLOAD_WARN_DAYS                :Road vehicle transport: warn when a carried road vehicle is not unloaded for: {STRING}
+STR_CONFIG_SETTING_RV_TRANSPORT_UNLOAD_WARN_DAYS_HELPTEXT       :Show a news message when a road vehicle has been on board its carrier for this many days without being dropped off anywhere.{}Road vehicles are only put down at a station their own schedule asks for, so a carrier which never reaches such a station (or a road vehicle whose drop-off station was removed) keeps them on board; the warning points that out.{}The warning is shown once per trip (each time the vehicle is loaded again it may warn again).{}0 turns the warning off.
+STR_CONFIG_SETTING_RV_TRANSPORT_UNLOAD_WARN_DAYS_VALUE           :{NUM} day{P "" s}
 
 STR_CONFIG_SETTING_SLOW_ROAD_VEHICLES_IN_CURVES                 :Road vehicles slow down in curves: {STRING2}
 STR_CONFIG_SETTING_SLOW_ROAD_VEHICLES_IN_CURVES_HELPTEXT        :When enabled, road vehicles slow down in curves. (Only with realistic acceleration)

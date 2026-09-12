@@ -172,7 +172,7 @@ version 3) and does **not** bump `SAVEGAME_VERSION`:
 | GUI | `src/order_gui.cpp`, `src/vehicle_gui.cpp`, `src/lang/extra/*.txt` | dropdown entries, road-vehicle vs carrier wording, order-row markers, status strings |
 | Destruction | `src/vehicle.cpp` (`PreDestructor` → `RVTransportDestroyCarriedVehicles`) | a destroyed carrier takes the road vehicles it holds with it |
 | Position/lists | `src/roadveh_transport.cpp` (`RVTransportGetFollowVehicle`), `viewport.cpp`, `window.cpp`, `vehicle_gui.cpp`, `vehiclelist.cpp` | carried road vehicles stay listed and are followed/located at their carrier |
-| Setting | `src/table/settings/game_settings.ini`, `src/settings_type.h`, `src/settingentry_gui.cpp`, `src/roadveh_transport.h` | `vehicle.rv_transport_carrier_parts` (enum, expert category, own settings page): `0` = any part with cargo capacity may carry, `1` = only a part whose cargo is in the *oversized* class may carry, `2` (**default**) = only a part whose cargo is bulk, *oversized*, or the NewGRF "Vehicles" cargo (label `VEHI`) may carry |
+| Setting | `src/table/settings/game_settings.ini`, `src/settings_type.h`, `src/settingentry_gui.cpp`, `src/roadveh_transport.h` | `vehicle.rv_transport_carrier_parts` (enum, expert category, own settings page): `0` = any part with cargo capacity may carry, `1` = only a part whose cargo is in the *oversized* class may carry, `2` (**default**) = only a part whose cargo is bulk, *oversized*, or the NewGRF "Vehicles" cargo (label `VEHI`) may carry; `vehicle.rv_transport_unload_warn_days` (uint16, default 30, same page) = warn when a carried road vehicle was not unloaded for that many days (0 = no warning) |
 
 ## Developer/debug console commands
 
@@ -268,6 +268,11 @@ Design decisions worth knowing when reviewing:
   appear in vehicle lists/groups/statistics, or contribute to the road network.
 * While carried, a road vehicle's own cargo is frozen (in-transit time/distance is not advanced);
   the cargo flow graphs therefore do not show the carried leg (it never enters a station cargo slot).
+* A road vehicle is only put down at a station **its own schedule** asks for (a "be unloaded here"
+  order), so a carrier which never stops at such a station keeps it on board. The advice news
+  *"{Vehicle} has been carried for N days without being unloaded"* points that out; it is shown once per
+  trip, and the threshold is the setting `vehicle.rv_transport_unload_warn_days` (expert category, on
+  the same "Road vehicle transport" page, default 30 days, 0 disables it).
 * Which carrier parts may carry a road vehicle is decided by one three-value setting
   (*Settings → Expert → Road vehicle transport → "Which carrier parts may carry road vehicles"*):
 

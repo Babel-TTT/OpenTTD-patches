@@ -287,6 +287,18 @@
 
 > 说明（**为何不用 `sim` 驱动装载**）：`rvtransport` 的修改类子命令（`sim`/`attach`/`loadfrom`/`setwaiting`）是**本地调试命令**，直接在服务端改状态、**不走命令框架**，客户端按设计看不到（实测正是如此：服务端 `flags=2`、客户端仍 `flags=1`）。因此联机检查用"加入时整盘传输"来验证本分支新增的**车辆存档字段**（`rv_transport_flags`/`transported_by`/`transported_host_part`/`transported_weight`）在网络传输后一致——这也是该特性最可能引入不同步的地方。
 
+### 11.3 M11g：被运载过久的告警（规格书 §7 设置项，2026-09-12）
+
+规格书 §7 列的设置项里，"被运载超过 N 天未卸"的告警阈值此前未实现，而它对应的正是 §6 风险表里那条"目的站被拆/改建导致滞留堆车"。补上：
+
+| 项 | 内容 |
+|---|---|
+| 设置 | `vehicle.rv_transport_unload_warn_days`（`SLE_UINT16`，`SettingFlag::Patch`，默认 **30**，范围 0–1000，0 = 不告警；类别 `SC_EXPERT`，与"哪节可以装"同页） |
+| 计时 | 装载成功时把 `transport_wait_tick` 记为当前 tick（该字段只在**等待**状态下被"最短等待"判据读，而等待开始时会被重新赋值，故复用安全）；`RVTF_UNLOAD_WARNED`（bit 2）记录"本趟已告警" |
+| 判定 | 在 `RunVehicleDayProc()` 里对**被运载**的车调用 `RVTransportCheckCarriedTooLong()`（被运载车本来在日循环里被整体跳过，正好在这里检查）；超过 `阈值 × DAY_TICKS`（与"最短等待"判据同一换算口径）就发一次 `NewsType::Advice` 新闻 `STR_NEWS_RV_TRANSPORT_UNLOAD_OVERDUE` 并置位 |
+| 重置 | 重新进入等待（`RVTransportSetWaiting(true)`）或再次被装上时清掉告警位 → 每趟只提示一次 |
+| 回归 | `verify_unload_warn.ps1`：先把车装上并**清空该车所有订单的 RoRo 旗标**（保证不会再被卸下），阈值设 1 天后跑 60 s → `flags=6`（carried｜warned）；阈值设 0 后同样跑 60 s → `flags=2`（无告警） |
+
 ---
 
 ## 附录 A：实现顺序与依赖

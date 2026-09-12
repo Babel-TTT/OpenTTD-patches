@@ -1019,6 +1019,7 @@ SettingsContainer &GetSettingsTree()
 		SettingsPage *rv_transport = main->Add(new SettingsPage(STR_CONFIG_SETTING_ROAD_VEHICLE_TRANSPORT));
 		{
 			rv_transport->Add(new SettingEntry("vehicle.rv_transport_carrier_parts"));
+	rv_transport->Add(new SettingEntry("vehicle.rv_transport_unload_warn_days"));
 		}
 
 		SettingsPage *limitations = main->Add(new SettingsPage(STR_CONFIG_SETTING_LIMITATIONS));
