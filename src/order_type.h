@@ -302,6 +302,7 @@ enum ModifyOrderFlags : uint8_t {
 	MOF_RV_CARGO_MODE,   ///< Road vehicle transport (RoRo) selection criterion: cargo mode of a candidate (CargoType is passed along).
 	MOF_RV_MIN_WAIT,     ///< Road vehicle transport (RoRo) selection criterion: minimum waiting time of a candidate.
 	MOF_RV_SLOT,         ///< Road vehicle transport (RoRo) selection criterion: trace restrict slot ("路签") a candidate must hold.
+	MOF_RV_MAX,          ///< Road vehicle transport (RoRo): most road vehicles to load in one visit (0 = no limit).
 	MOF_END
 };
 

@@ -4766,6 +4766,16 @@ STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_10                           :Wait at least: 
 STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_30                           :Wait at least: 30 days
 STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_60                           :Wait at least: 60 days
 STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_CUSTOM                       :Wait at least: a custom time
+STR_RV_TRANSPORT_CRITERIA_MAX                                   :Most road vehicles at once
+STR_RV_TRANSPORT_CRITERIA_MAX_ANY                               :Take any number
+STR_RV_TRANSPORT_CRITERIA_MAX_1                                 :Take at most 1
+STR_RV_TRANSPORT_CRITERIA_MAX_2                                 :Take at most 2
+STR_RV_TRANSPORT_CRITERIA_MAX_3                                 :Take at most 3
+STR_RV_TRANSPORT_CRITERIA_MAX_5                                 :Take at most 5
+STR_RV_TRANSPORT_CRITERIA_MAX_10                                :Take at most 10
+STR_RV_TRANSPORT_CRITERIA_MAX_N                                 :Take at most {NUM}
+STR_RV_TRANSPORT_CRITERIA_MAX_CUSTOM                            :Take at most a custom number
+STR_ORDER_RV_MAX_VEHICLES                                       :at most {NUM}
 STR_ORDER_TOOLTIP_FULL_LOAD                                     :{BLACK}Change the loading behaviour of the highlighted order
 
 STR_ORDER_TOGGLE_UNLOAD                                         :{BLACK}Unload all

@@ -478,6 +478,12 @@ bool RVTransportAttach(Vehicle *carrier, Vehicle *part, Vehicle *rv, bool force)
 bool RVTransportAttachAuto(Vehicle *carrier, Vehicle *rv, bool force)
 {
 	if (carrier == nullptr) return false;
+
+	/* The "load road vehicles" order of this carrier may cap how many it carries at once (0 = no cap);
+	 * this is the one place through which every load goes, so the cap is checked here. */
+	const uint8_t max_load = carrier->current_order.GetRVTransportMax();
+	if (!force && max_load != 0 && RVTransportCountOnCarrier(carrier) >= max_load) return false;
+
 	for (Vehicle *part = carrier; part != nullptr; part = part->Next()) {
 		if (RVTransportAttach(carrier, part, rv, force)) return true;
 	}
@@ -840,6 +846,7 @@ bool RVTransportOrderHasCriteria(const Order &order)
 	if (order.GetRVTransportCargoMode() != RVTC_ANY) return true;
 	if (order.GetRVTransportMinWait() != 0) return true;
 	if (order.GetRVTransportSlot() != 0) return true;
+	if (order.GetRVTransportMax() != 0) return true;
 	return false;
 }
 

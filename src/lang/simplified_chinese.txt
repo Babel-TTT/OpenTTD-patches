@@ -4750,6 +4750,16 @@ STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_10                           :最短等待：
 STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_30                           :最短等待：30 天
 STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_60                           :最短等待：60 天
 STR_RV_TRANSPORT_CRITERIA_MIN_WAIT_CUSTOM                       :最短等待：自定义时间
+STR_RV_TRANSPORT_CRITERIA_MAX                                   :最多同时装载
+STR_RV_TRANSPORT_CRITERIA_MAX_ANY                               :不限数量
+STR_RV_TRANSPORT_CRITERIA_MAX_1                                 :最多 1 辆
+STR_RV_TRANSPORT_CRITERIA_MAX_2                                 :最多 2 辆
+STR_RV_TRANSPORT_CRITERIA_MAX_3                                 :最多 3 辆
+STR_RV_TRANSPORT_CRITERIA_MAX_5                                 :最多 5 辆
+STR_RV_TRANSPORT_CRITERIA_MAX_10                                :最多 10 辆
+STR_RV_TRANSPORT_CRITERIA_MAX_N                                 :最多 {NUM} 辆
+STR_RV_TRANSPORT_CRITERIA_MAX_CUSTOM                            :最多自定义数量
+STR_ORDER_RV_MAX_VEHICLES                                       :最多 {NUM} 辆
 STR_ORDER_TOOLTIP_FULL_LOAD                                     :{BLACK}修改当前命令在车站的装载措施
 
 STR_ORDER_TOGGLE_UNLOAD                                         :{BLACK}全部卸载

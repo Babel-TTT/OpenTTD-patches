@@ -62,6 +62,12 @@ parameterised style of the px-patch train coupling feature (whose `CoupleOrderLo
 | cargo | any / can carry X / is carrying X | only take a vehicle which can carry, or currently carries, cargo X |
 | minimum waiting time | 0 = no limit / N days | only take a vehicle which has been waiting for at least N days |
 | trace restrict slot | any / a road vehicle slot | only take a vehicle which is an occupant of that slot (the "路签" parameter of the px-patch coupling feature) |
+| most road vehicles at once | no limit / 1 / 2 / 3 / 5 / 10 | stop loading when the carrier already holds that many road vehicles (0 = no limit) |
+
+The last row is a limit rather than a filter: it is checked in `RVTransportAttachAuto()` (through which
+every load goes, so a debug command cannot bypass it either) against the number of road vehicles the
+carrier currently holds, which also covers road vehicles it picked up at an earlier stop of a
+multi-leg route.
 
 A specific declared destination was tried and dropped again: the destination a road vehicle
 "declares" is the *first* station of its schedule that carries *be unloaded here*, so with several
@@ -185,6 +191,7 @@ rvtransport criteria <vehicle> <order> loadstate any|empty|full
 rvtransport criteria <vehicle> <order> cargo any|<cargo_id> [carrying]
 rvtransport criteria <vehicle> <order> minwait <days>
 rvtransport criteria <vehicle> <order> slot any|<slot_id>
+rvtransport criteria <vehicle> <order> max <count>            # 0 = no limit
 rvtransport carried <vehicle>                       # the road vehicles a carrier holds
 rvtransport parts <vehicle>                         # per carrier part: cargo/cap/stored/rv_capacity/rv_used/holds_rv
 rvtransport vscroll <vehicle>                       # line count of every tab of the train details window

@@ -452,6 +452,8 @@ enum RVTransportWidgets : WidgetID {
 	WID_RVT_MIN_WAIT,         ///< Minimum waiting time criterion.
 	WID_RVT_SLOT_LABEL,       ///< Label of the trace restrict slot criterion.
 	WID_RVT_SLOT,             ///< Trace restrict slot criterion.
+	WID_RVT_MAX_LABEL,        ///< Label of the per-visit load limit.
+	WID_RVT_MAX,              ///< Per-visit load limit (how many road vehicles are taken at once).
 	WID_RVT_CLOSE,            ///< Close button.
 };
 
@@ -462,6 +464,9 @@ static const int RVTC_CARGO_MODE_CARRYING = 1;  ///< Cargo criterion: the candid
 
 /** Waiting times which the "minimum waiting time" criterion offers (in days). */
 static const uint16_t _rv_transport_min_wait_presets[] = { 0, 1, 2, 5, 10, 30, 60 };
+
+/** Numbers of road vehicles the per-visit load limit offers (0 = no limit). */
+static const uint8_t _rv_transport_max_presets[] = { 0, 1, 2, 3, 5, 10 };
 
 /**
  * Complete text of the load state criterion for a button: a widget string can only be a plain
@@ -490,6 +495,23 @@ static StringID RVTransportMinWaitCriterionText(uint16_t days)
 }
 
 /**
+ * Complete text of the per-visit load limit button. As with the other criteria, a widget string cannot
+ * carry a parameter, so the presets have strings of their own and everything else is "custom".
+ */
+static StringID RVTransportMaxLoadText(uint8_t max_load)
+{
+	switch (max_load) {
+		case 0:  return STR_RV_TRANSPORT_CRITERIA_MAX_ANY;
+		case 1:  return STR_RV_TRANSPORT_CRITERIA_MAX_1;
+		case 2:  return STR_RV_TRANSPORT_CRITERIA_MAX_2;
+		case 3:  return STR_RV_TRANSPORT_CRITERIA_MAX_3;
+		case 5:  return STR_RV_TRANSPORT_CRITERIA_MAX_5;
+		case 10: return STR_RV_TRANSPORT_CRITERIA_MAX_10;
+		default: return STR_RV_TRANSPORT_CRITERIA_MAX_CUSTOM;
+	}
+}
+
+/**
  * Window with every road vehicle transport (RoRo) setting of one station order: whether road
  * vehicles are loaded here (or unloaded here, for a road vehicle itself), whether the carrier waits
  * for them, and which road vehicles are taken (load state, cargo, minimum waiting time, declared
@@ -514,11 +536,13 @@ private:
 		uint8_t cargo = 0;
 		uint16_t min_wait = 0;
 		uint16_t slot = 0;
+		uint8_t max_load = 0;
 
 		bool operator==(const SettingsSnapshot &other) const
 		{
 			return this->flags == other.flags && this->load_state == other.load_state && this->cargo_mode == other.cargo_mode &&
-					this->cargo == other.cargo && this->min_wait == other.min_wait && this->slot == other.slot;
+					this->cargo == other.cargo && this->min_wait == other.min_wait && this->slot == other.slot &&
+					this->max_load == other.max_load;
 		}
 	};
 
@@ -534,6 +558,7 @@ private:
 		s.cargo = this->order->GetRVTransportCargo();
 		s.min_wait = this->order->GetRVTransportMinWait();
 		s.slot = this->order->GetRVTransportSlot();
+		s.max_load = this->order->GetRVTransportMax();
 		return s;
 	}
 
@@ -568,6 +593,8 @@ private:
 		this->SetWidgetDisabledState(WID_RVT_CARGO_MODE, !criteria_useful);
 		this->SetWidgetDisabledState(WID_RVT_MIN_WAIT, !criteria_useful);
 		this->SetWidgetDisabledState(WID_RVT_SLOT, !criteria_useful);
+		/* The per-visit load limit only matters while road vehicles are loaded here. */
+		this->SetWidgetDisabledState(WID_RVT_MAX, !criteria_useful);
 
 		this->GetWidget<NWidgetCore>(WID_RVT_LOAD_STATE)->SetString(RVTransportLoadStateCriterionText(this->order->GetRVTransportLoadState()));
 
@@ -592,6 +619,8 @@ private:
 			/* A widget string cannot carry a parameter, so a deleted slot is shown as "any" as well. */
 			this->GetWidget<NWidgetCore>(WID_RVT_SLOT)->SetString((slot != nullptr) ? STR_RV_TRANSPORT_CRITERIA_SLOT_SET : STR_ORDER_RV_LOAD_STATE_ANY);
 		}
+
+		this->GetWidget<NWidgetCore>(WID_RVT_MAX)->SetString(RVTransportMaxLoadText(this->order->GetRVTransportMax()));
 	}
 
 	/** Is the edited order still there? */
@@ -666,6 +695,18 @@ private:
 		for (const uint16_t days : _rv_transport_min_wait_presets) {
 			std::string text = (days == 0) ? GetString(STR_ORDER_RV_MIN_WAIT_NONE) : GetString(STR_ORDER_RV_MIN_WAIT_DAYS, days);
 			list.push_back(MakeDropDownListCheckedItem(current == days, std::move(text), days));
+		}
+		return list;
+	}
+
+	/** Build the dropdown which selects the per-visit load limit (how many road vehicles are taken). */
+	DropDownList BuildMaxList() const
+	{
+		const uint8_t current = this->order->GetRVTransportMax();
+		DropDownList list;
+		for (const uint8_t max_load : _rv_transport_max_presets) {
+			std::string text = (max_load == 0) ? GetString(STR_RV_TRANSPORT_CRITERIA_MAX_ANY) : GetString(STR_RV_TRANSPORT_CRITERIA_MAX_N, max_load);
+			list.push_back(MakeDropDownListCheckedItem(current == max_load, std::move(text), max_load));
 		}
 		return list;
 	}
@@ -758,6 +799,9 @@ public:
 			case WID_RVT_SLOT:
 				ShowDropDownList(this, this->BuildSlotList(), -1, WID_RVT_SLOT, 0);
 				return;
+			case WID_RVT_MAX:
+				ShowDropDownList(this, this->BuildMaxList(), -1, WID_RVT_MAX, 0);
+				return;
 
 			case WID_RVT_CLOSE:
 				this->Close();
@@ -809,6 +853,10 @@ public:
 
 			case WID_RVT_SLOT:
 				this->ModifyOrder(MOF_RV_SLOT, static_cast<uint16_t>(index));
+				break;
+
+			case WID_RVT_MAX:
+				this->ModifyOrder(MOF_RV_MAX, static_cast<uint16_t>(index));
 				break;
 
 			default:
@@ -867,6 +915,10 @@ static constexpr NWidgetPart _nested_rv_transport_widgets[] = {
 		NWidget(NWID_HORIZONTAL),
 			NWidget(WWT_TEXT, Colours::Invalid, WID_RVT_SLOT_LABEL), SetFill(1, 0), SetResize(1, 0), SetStringTip(STR_RV_TRANSPORT_CRITERIA_SLOT, STR_NULL),
 			NWidget(WWT_DROPDOWN, Colours::Grey, WID_RVT_SLOT), SetFill(0, 0), SetResize(0, 0),
+		EndContainer(),
+		NWidget(NWID_HORIZONTAL),
+			NWidget(WWT_TEXT, Colours::Invalid, WID_RVT_MAX_LABEL), SetFill(1, 0), SetResize(1, 0), SetStringTip(STR_RV_TRANSPORT_CRITERIA_MAX, STR_NULL),
+			NWidget(WWT_DROPDOWN, Colours::Grey, WID_RVT_MAX), SetFill(0, 0), SetResize(0, 0),
 		EndContainer(),
 	EndContainer(),
 	NWidget(NWID_HORIZONTAL),
@@ -1445,6 +1497,10 @@ void DrawOrderString(const Vehicle *v, const Order *order, int order_index, int 
 							line.push_back(' ');
 							line.append(GetString(STR_ORDER_RV_SLOT, slot->index.base()));
 						}
+					}
+					if (order->GetRVTransportMax() != 0) {
+						line.push_back(' ');
+						line.append(GetString(STR_ORDER_RV_MAX_VEHICLES, order->GetRVTransportMax()));
 					}
 				}
 			}

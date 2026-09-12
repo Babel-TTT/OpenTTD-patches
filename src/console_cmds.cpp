@@ -4466,6 +4466,7 @@ static void RVTransportDebugSyncCurrentOrder(Vehicle *v, VehicleOrderID order_in
 	v->current_order.GetRVTransportCargoRef() = o->GetRVTransportCargo();
 	v->current_order.GetRVTransportMinWaitRef() = o->GetRVTransportMinWait();
 	v->current_order.GetRVTransportSlotRef() = o->GetRVTransportSlot();
+	v->current_order.GetRVTransportMaxRef() = o->GetRVTransportMax();
 }
 
 static bool ConRVTransport(std::span<std::string_view> argv)
@@ -4501,6 +4502,7 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> cargo any|<cargo_id> [carrying]");
 		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> minwait <days>");
 		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> slot any|<slot_id>");
+		IConsolePrint(CC_HELP, "  rvtransport criteria <vehicle_id> <order_nr> max <count>   # 0 = no limit");
 		IConsolePrint(CC_HELP, "  rvtransport mkslot <name> [max_occupancy]   # create a road vehicle slot");
 		IConsolePrint(CC_HELP, "  rvtransport slot <vehicle_id> <slot_id> on|off");
 		IConsolePrint(CC_HELP, "  rvtransport carried <carrier_id>");
@@ -4852,8 +4854,11 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 				if (slot == nullptr) { IConsolePrint(CC_ERROR, "slot must be <slot id>, 'any' or 'none'"); return true; }
 				data = static_cast<uint16_t>(slot_raw + 1);
 			}
+		} else if (StrEqualsIgnoreCase(key, "max")) {
+			mof = MOF_RV_MAX;
+			data = ParseType<uint16_t>(value).value_or(0);
 		} else {
-			IConsolePrint(CC_ERROR, "criteria key must be 'loadstate', 'cargo', 'minwait' or 'slot'");
+			IConsolePrint(CC_ERROR, "criteria key must be 'loadstate', 'cargo', 'minwait', 'slot' or 'max'");
 			return true;
 		}
 
@@ -4866,10 +4871,10 @@ static bool ConRVTransport(std::span<std::string_view> argv)
 		_local_company = old_local_company;
 		const bool ok = res.Succeeded();
 		if (ok) RVTransportDebugSyncCurrentOrder(v, order_index);
-		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "criteria: {} (vehicle #{} order {} {}={}), load_state={} cargo_mode={} cargo={} min_wait={} slot={}",
+		IConsolePrint(ok ? CC_DEFAULT : CC_ERROR, "criteria: {} (vehicle #{} order {} {}={}), load_state={} cargo_mode={} cargo={} min_wait={} slot={} max={}",
 				ok ? "OK" : "FAILED", v->index.base(), order_index, key, value,
 				o->GetRVTransportLoadState(), o->GetRVTransportCargoMode(), o->GetRVTransportCargo(),
-				o->GetRVTransportMinWait(), o->GetRVTransportSlot());
+				o->GetRVTransportMinWait(), o->GetRVTransportSlot(), o->GetRVTransportMax());
 		return true;
 	}
 

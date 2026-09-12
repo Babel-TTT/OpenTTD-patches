@@ -276,6 +276,19 @@ public:
 		return this->extra->rv_transport_slot;
 	}
 
+	/** Road vehicle transport (RoRo): most road vehicles this order may load in one visit (0 = no limit). */
+	inline uint8_t GetRVTransportMax() const
+	{
+		return this->extra != nullptr ? this->extra->rv_transport_max : 0;
+	}
+
+	/** Road vehicle transport (RoRo): writable reference to the per-visit load limit. */
+	inline uint8_t &GetRVTransportMaxRef()
+	{
+		this->CheckExtraInfoAlloced();
+		return this->extra->rv_transport_max;
+	}
+
 	inline uint32_t GetXData2() const
 	{
 		return this->extra != nullptr ? this->extra->xdata2 : 0;

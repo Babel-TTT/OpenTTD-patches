@@ -1972,7 +1972,7 @@ CommandCost CmdModifyOrder(DoCommandFlags flags, VehicleID veh, VehicleOrderID s
 		switch (order->GetType()) {
 			case OT_GOTO_STATION:
 				if (mof != MOF_NON_STOP && mof != MOF_STOP_LOCATION && mof != MOF_UNLOAD && mof != MOF_LOAD && mof != MOF_CARGO_TYPE_UNLOAD && mof != MOF_CARGO_TYPE_LOAD && mof != MOF_RV_TRAVEL_DIR
-						&& mof != MOF_RV_TRANSPORT && mof != MOF_RV_LOAD_STATE && mof != MOF_RV_CARGO_MODE && mof != MOF_RV_MIN_WAIT && mof != MOF_RV_SLOT) return CMD_ERROR;
+						&& mof != MOF_RV_TRANSPORT && mof != MOF_RV_LOAD_STATE && mof != MOF_RV_CARGO_MODE && mof != MOF_RV_MIN_WAIT && mof != MOF_RV_SLOT && mof != MOF_RV_MAX) return CMD_ERROR;
 				break;
 
 			case OT_GOTO_DEPOT:
@@ -2087,6 +2087,12 @@ CommandCost CmdModifyOrder(DoCommandFlags flags, VehicleID veh, VehicleOrderID s
 		case MOF_RV_MIN_WAIT:
 			/* RoRo selection criterion: minimum waiting time of a candidate road vehicle (in days). */
 			if (!order->IsType(OT_GOTO_STATION)) return CommandCost(STR_ERROR_RV_TRANSPORT_STATION_ORDER_ONLY);
+			break;
+
+		case MOF_RV_MAX:
+			/* RoRo: most road vehicles to load in one visit (0 = no limit). */
+			if (!order->IsType(OT_GOTO_STATION)) return CommandCost(STR_ERROR_RV_TRANSPORT_STATION_ORDER_ONLY);
+			if (data > 0xFF) return CMD_ERROR;
 			break;
 
 		case MOF_RV_SLOT: {
@@ -2429,6 +2435,10 @@ CommandCost CmdModifyOrder(DoCommandFlags flags, VehicleID veh, VehicleOrderID s
 
 			case MOF_RV_SLOT:
 				order->GetRVTransportSlotRef() = static_cast<uint16_t>(data);
+				break;
+
+			case MOF_RV_MAX:
+				order->GetRVTransportMaxRef() = static_cast<uint8_t>(data);
 				break;
 
 			case MOF_CARGO_TYPE_LOAD:

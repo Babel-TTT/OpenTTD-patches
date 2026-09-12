@@ -251,6 +251,24 @@
 
 追加项共同的收尾约束（与 M8 一致）：每个里程碑都要"可编译 + 最小场景可玩 + 回归不炸"，并同步规划/规格/手测文档。
 
+### 11.1 M11e：每单装载上限与两处订单命令修复（2026-09-12）
+
+`OrderExtraInfo::rv_transport_max`（自 M1 起就在存档里、但没人读的**死字段**）接完整：
+
+| 项 | 内容 |
+|---|---|
+| 语义 | 「最多同时装载 N 辆」= 载体**当前已载**的道路载具数量达到 N 时停止继续装；**0 = 不限**（默认）。多段行程里上一站装的车也计入 |
+| 数据/命令 | `MOF_RV_MAX`（`order_type.h`）+ 站订单白名单 + 校验（`data <= 0xFF`）+ 写入 `GetRVTransportMaxRef()`；`Order::AssignOrder()` 早前已带上该字段 |
+| 判定点 | `RVTransportAttachAuto()`（`force=true` 时跳过，供调试命令使用）。所有自动装载与调试装载都经此处，因此只有一个判定点 |
+| GUI | 设置窗口新增一行「最多同时装载」下拉（不限/1/2/3/5/10，非预置值显示为"最多自定义数量"）；勾选装载时才可用；订单行同步显示「最多 N 辆」 |
+| 控制台 | `rvtransport criteria <vehicle> <order> max <n>` |
+| 回归 | `verify_max_load.ps1`：船 #28 上限 1 → 装载#1 `attached=true`、装载#2 `attached=false`；上限 2 → `true`；上限 0 → `true` |
+
+顺带修掉的两处（都由这轮测试暴露）：
+
+1. **`rvtransport orderflag`/`modify` 与 GUI 的 `UNLOAD_ALL`**：`MOF_RV_TRANSPORT` 的数据白名单漏了 `ORVTF_UNLOAD_ALL`，导致设置窗口里「在此卸下全部道路载具」勾选框**点了没反应**（命令返回 `CMD_ERROR`）。修后 `rvtransport modify … unloadall` 由 `FAILED → OK`，并加进 `verify_toggle.ps1` 的断言（旧脚本用的 `orderflag` 直接写引用、绕过校验，所以一直没覆盖到）。
+2. **控制台的"同步当前订单"辅助函数漏字段**：`RVTransportDebugSyncCurrentOrder()` 没把 `max` 抄进 `current_order`，于是上限只写进订单列表、装载读不到——`verify_max_load.ps1` 第一次跑就是 `attached=true`（本应为 `false`），补上该行后通过。GUI 路径不受影响（引擎在 `ProcessOrders()` 里整体 `current_order = *order`，`extra` 是深拷贝）。
+
 ---
 
 ## 附录 A：实现顺序与依赖

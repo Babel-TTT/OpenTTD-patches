@@ -39,6 +39,7 @@ $all = @(
     'verify_user_save.ps1',
     'verify_toggle.ps1',
     'verify_filter.ps1',
+    'verify_max_load.ps1',
     'verify_slot.ps1',
     'verify_release.ps1',
     'verify_destroy.ps1'
